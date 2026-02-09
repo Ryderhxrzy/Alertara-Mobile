@@ -36,6 +36,11 @@ const MAPPING = {
   'shield': 'shield',
   'clock': 'time',
   'info.circle': 'information-circle',
+  'checkmark': 'checkmark-done',
+  'exclamationmark': 'alert-circle',
+  'xmark': 'close-circle',
+  'building': 'business',
+  'phone': 'call',
 } as unknown as IconMapping;
 
 /**
