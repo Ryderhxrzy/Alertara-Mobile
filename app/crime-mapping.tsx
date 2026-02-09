@@ -1,8 +1,12 @@
 /**
  * Crime Map Screen
- * Shows overview of crime mapping service (map removed)
+ * Shows overview of crime mapping service with user location, time filtering, and police info
  */
 
+import { Header } from "@/components/header";
+import { SafetyScore } from "@/components/crime-map/safety-score";
+import { TimeFilter } from "@/components/crime-map/time-filter";
+import { LeafletMap } from "@/components/leaflet-map";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -14,60 +18,109 @@ import {
   TealColors,
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
+import { CrimeApiService } from "@/services/crime/crime-api-service";
+import { LocationService } from "@/services/location/location-service";
+import type {
+  CrimeDataPoint,
+  TimeFilterOption,
+  UserLocation,
+} from "@/types/crime";
+import { filterCrimeDataByTime } from "@/utils/crime-filter-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
-import React from "react";
-import { ScrollView, StyleSheet, View, Pressable } from "react-native";
-import MapView, { Polygon, PROVIDER_GOOGLE } from "react-native-maps";
-
-// Helper function to calculate bounding box from coordinates
-const calculateBounds = (coordinates: { latitude: number; longitude: number }[]) => {
-  let minLat = coordinates[0]?.latitude || 0;
-  let maxLat = coordinates[0]?.latitude || 0;
-  let minLng = coordinates[0]?.longitude || 0;
-  let maxLng = coordinates[0]?.longitude || 0;
-
-  for (const coord of coordinates) {
-    minLat = Math.min(minLat, coord.latitude);
-    maxLat = Math.max(maxLat, coord.latitude);
-    minLng = Math.min(minLng, coord.longitude);
-    maxLng = Math.max(maxLng, coord.longitude);
-  }
-
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLng = (minLng + maxLng) / 2;
-  const latDelta = (maxLat - minLat) * 1.02;
-  const lngDelta = (maxLng - minLng) * 1.02;
-
-  return {
-    latitude: centerLat,
-    longitude: centerLng,
-    latitudeDelta: Math.max(latDelta, 0.01),
-    longitudeDelta: Math.max(lngDelta, 0.01),
-  };
-};
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 export default function CrimeMapScreen() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   const qcBoundaryCoordinates = getQCBoundaryCoordinates();
-  const initialRegion = calculateBounds(qcBoundaryCoordinates);
+
+  // User location state
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+
+  // Crime data state
+  const [allCrimeData, setAllCrimeData] = useState<CrimeDataPoint[]>([]);
+  const [filteredCrimeData, setFilteredCrimeData] = useState<CrimeDataPoint[]>(
+    [],
+  );
+  const [isLoadingCrimeData, setIsLoadingCrimeData] = useState(true);
+
+  // Time filter state
+  const [selectedTimeFilter, setSelectedTimeFilter] =
+    useState<TimeFilterOption>("alltime");
+
+  // Fetch user location on mount
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      setIsLoadingLocation(true);
+      try {
+        const location = await LocationService.getCurrentLocation();
+        if (location) {
+          setUserLocation(location);
+          console.log("User location acquired:", location);
+        }
+      } catch (error) {
+        console.error("Error fetching location:", error);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    };
+
+    fetchUserLocation();
+  }, []);
+
+  // Fetch crime data on mount
+  useEffect(() => {
+    const fetchCrimeData = async () => {
+      setIsLoadingCrimeData(true);
+      try {
+        const data = await CrimeApiService.fetchCrimeHeatmap();
+        setAllCrimeData(data);
+        console.log("Crime data fetched:", data.length, "points");
+      } catch (error) {
+        console.error("Failed to fetch crime data:", error);
+      } finally {
+        setIsLoadingCrimeData(false);
+      }
+    };
+
+    fetchCrimeData();
+  }, []);
+
+  // Filter crime data when time filter changes
+  useEffect(() => {
+    if (allCrimeData.length > 0) {
+      const filtered = filterCrimeDataByTime(allCrimeData, selectedTimeFilter);
+      setFilteredCrimeData(filtered);
+      console.log(
+        "Filtered crime data:",
+        filtered.length,
+        "points for",
+        selectedTimeFilter,
+      );
+    }
+  }, [allCrimeData, selectedTimeFilter]);
 
   const features = [
     {
-      title: "Crime Heatmap",
-      description: "Visualize crime density across different areas",
-      icon: "flame",
-      color: "#EF4444",
+      title: "User Location",
+      description: "Auto-detect and focus on your current location",
+      icon: "location",
+      color: "#3a7675",
     },
     {
-      title: "QC Boundary",
-      description: "View crime data within Quezon City limits",
-      icon: "map",
-      color: "#3B82F6",
-    },
-    {
-      title: "Real-time Data",
-      description: "Access up-to-date crime incident reports",
+      title: "Time Filtering",
+      description:
+        "Filter crime data by time range (Today, 7 days, 30 days, All Time)",
       icon: "clock",
+      color: "#10B981",
+    },
+    {
+      title: "Safety Score",
+      description: "Get real-time area safety assessment and crime statistics",
+      icon: "shield",
       color: "#10B981",
     },
   ];
@@ -97,6 +150,18 @@ export default function CrimeMapScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <Header />
+      <Pressable
+        onPress={() => router.back()}
+        style={styles.backButtonContainer}
+      >
+        <IconSymbol
+          name="arrow.left"
+          size={24}
+          color={TealColors.primary}
+        />
+        <ThemedText style={styles.backButtonText}>Back</ThemedText>
+      </Pressable>
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         {/* Hero Section */}
         <View style={styles.heroSection}>
@@ -114,7 +179,6 @@ export default function CrimeMapScreen() {
             our comprehensive mapping service.
           </ThemedText>
         </View>
-
 
         {/* Features Horizontal Scroll */}
         <View style={styles.featuresSection}>
@@ -158,6 +222,25 @@ export default function CrimeMapScreen() {
           </ScrollView>
         </View>
 
+        {/* Time Filter Section */}
+        <View style={styles.filterSection}>
+          <ThemedText style={styles.sectionTitle}>Time Range</ThemedText>
+          <TimeFilter
+            selectedFilter={selectedTimeFilter}
+            onFilterChange={setSelectedTimeFilter}
+          />
+        </View>
+
+        {/* Safety Score Section */}
+        {userLocation && (
+          <SafetyScore
+            userLatitude={userLocation.latitude}
+            userLongitude={userLocation.longitude}
+            crimeData={filteredCrimeData}
+            radiusKm={2}
+          />
+        )}
+
         {/* Map Section */}
         <View style={styles.mapSection}>
           <ThemedText style={styles.sectionTitle}>
@@ -172,37 +255,40 @@ export default function CrimeMapScreen() {
               },
             ]}
           >
-            <MapView
-              style={styles.map}
-              initialRegion={initialRegion}
-              provider={PROVIDER_GOOGLE}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-            >
-              {/* QC Boundary */}
-              <Polygon
-                coordinates={qcBoundaryCoordinates}
-                strokeColor={isDarkMode ? TealColors.primaryLight : TealColors.primary}
-                strokeWidth={3}
-                fillColor="transparent"
-              />
-            </MapView>
+            <LeafletMap
+              coordinates={qcBoundaryCoordinates}
+              borderColor={
+                isDarkMode ? TealColors.primaryLight : TealColors.primary
+              }
+              userLocation={userLocation}
+              crimeData={filteredCrimeData}
+              isLoadingCrimeData={isLoadingCrimeData}
+            />
           </View>
         </View>
 
         {/* More Services Section */}
         <View style={styles.moreServicesSection}>
           <View style={styles.sectionTitleContainer}>
-            <ThemedText style={styles.sectionTitle}>You May Also Like</ThemedText>
-            <IconSymbol size={20} name="chevron.right" color={isDarkMode ? "#60A5FA" : "#3B82F6"} />
+            <ThemedText style={styles.sectionTitle}>
+              You May Also Like
+            </ThemedText>
+            <IconSymbol
+              size={20}
+              name="chevron.right"
+              color={isDarkMode ? "#60A5FA" : "#3B82F6"}
+            />
           </View>
           <View style={styles.servicesGridCircle}>
             {moreServices.map((service, index) => (
               <Pressable
                 key={index}
                 style={styles.serviceIconOnly}
+                onPress={() => {
+                  if (service.title === "Submit Tip") {
+                    router.push("/submit-tip");
+                  }
+                }}
               >
                 <View
                   style={[
@@ -210,11 +296,7 @@ export default function CrimeMapScreen() {
                     { backgroundColor: service.color },
                   ]}
                 >
-                  <IconSymbol
-                    size={28}
-                    name={service.icon}
-                    color="#fff"
-                  />
+                  <IconSymbol size={28} name={service.icon} color="#fff" />
                 </View>
                 <ThemedText style={styles.serviceCardText}>
                   {service.title}
@@ -235,6 +317,20 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  filterSection: {
+    marginVertical: 12,
+  },
+  backButtonContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   backButton: {
     position: "absolute",
@@ -316,6 +412,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mapContainer: {
+    height: 550,
     borderRadius: 12,
     borderWidth: 1,
     overflow: "hidden",
