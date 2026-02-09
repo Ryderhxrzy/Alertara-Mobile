@@ -53,7 +53,7 @@ export function Header() {
     >
       <View style={styles.leftSection}>
         <Pressable style={styles.menuButton}>
-          <IconSymbol size={24} name="menu" color={ICON_COLOR} />
+          <IconSymbol size={24} name={'menu' as any} color={ICON_COLOR} />
         </Pressable>
         <View style={styles.logoContainer}>
           <Image
