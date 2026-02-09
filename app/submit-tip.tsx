@@ -16,6 +16,7 @@ import {
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { useRouter } from "expo-router";
+import { apiClient } from "@/services/api/api-config";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -78,8 +79,17 @@ export default function SubmitTipScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!crimeType.trim() || !location.trim() || !description.trim()) {
-      Alert.alert("Missing Information", "Please fill in all required fields");
+    // Validate all fields
+    if (!crimeType.trim()) {
+      Alert.alert("Missing Information", "Please enter crime type");
+      return;
+    }
+    if (!location.trim()) {
+      Alert.alert("Missing Information", "Please enter location");
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert("Missing Information", "Please enter details");
       return;
     }
 
@@ -93,45 +103,42 @@ export default function SubmitTipScreen() {
           const timeObj = new Date(selectedTime);
           dateObj.setHours(timeObj.getHours(), timeObj.getMinutes(), timeObj.getSeconds());
         }
-        dateOfCrime = dateObj.toISOString().slice(0, 19).replace('T', ' ');
+        dateOfCrime = dateObj.toISOString().slice(0, 16);
       }
 
-      const payload = {
+      const payload: any = {
         crime_type: crimeType.trim(),
         location: location.trim(),
         date_of_crime: dateOfCrime,
         details: description.trim(),
       };
 
-      const response = await fetch(
-        "http://crime-analytics.alertaraqc.com/api/submit-tip",
-        {
-          method: "POST",
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      // Use configured API client for request
+      const response = await apiClient.post("/submit-tip", payload);
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+      if (response.status === 200 || response.status === 201) {
+        // Reset form on success
+        setCrimeType("");
+        setLocation("");
+        setDescription("");
+        setSelectedDate(null);
+        setSelectedTime(null);
+
+        Alert.alert(
+          "Thank You",
+          "Your anonymous tip has been submitted successfully. We appreciate your help in keeping our community safe.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back(),
+            },
+          ],
+        );
       }
-
-      Alert.alert(
-        "Thank You",
-        "Your anonymous tip has been submitted successfully. We appreciate your help in keeping our community safe.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-      );
-    } catch (error) {
-      Alert.alert("Error", "Failed to submit tip. Please try again.");
+    } catch (error: any) {
       console.error("Submit error:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to submit tip";
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -408,6 +415,56 @@ export default function SubmitTipScreen() {
             </ThemedText>
           </View>
 
+          {/* Security Notice */}
+          <View
+            style={[
+              styles.securityNoticeBox,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(59, 130, 246, 0.1)"
+                  : "rgba(59, 130, 246, 0.05)",
+                borderColor: TealColors.primary,
+              },
+            ]}
+          >
+            <View style={styles.securityHeader}>
+              <IconSymbol
+                name="lock.fill"
+                size={20}
+                color={TealColors.primary}
+              />
+              <ThemedText style={styles.securityTitle}>
+                Security Protection
+              </ThemedText>
+            </View>
+            <View style={styles.securityList}>
+              <View style={styles.securityItem}>
+                <ThemedText style={styles.securityBullet}>•</ThemedText>
+                <ThemedText style={styles.securityItemText}>
+                  HTTPS encryption for data transmission
+                </ThemedText>
+              </View>
+              <View style={styles.securityItem}>
+                <ThemedText style={styles.securityBullet}>•</ThemedText>
+                <ThemedText style={styles.securityItemText}>
+                  Backend validation and verification
+                </ThemedText>
+              </View>
+              <View style={styles.securityItem}>
+                <ThemedText style={styles.securityBullet}>•</ThemedText>
+                <ThemedText style={styles.securityItemText}>
+                  Rate limiting to prevent spam
+                </ThemedText>
+              </View>
+              <View style={styles.securityItem}>
+                <ThemedText style={styles.securityBullet}>•</ThemedText>
+                <ThemedText style={styles.securityItemText}>
+                  Fraud detection and prevention
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+
 
           {/* Buttons */}
           <View style={styles.buttonContainer}>
@@ -675,6 +732,7 @@ export default function SubmitTipScreen() {
             </View>
           </Modal>
 
+
       </ThemedView>
     </KeyboardAvoidingView>
   );
@@ -877,5 +935,87 @@ const styles = StyleSheet.create({
   pickerItemTextSelected: {
     fontWeight: "700",
     color: TealColors.primary,
+  },
+  captchaContainer: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  captchaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  captchaTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  captchaWebViewInline: {
+    height: 100,
+    borderRadius: 0,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  captchaLoadingInline: {
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 0,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  captchaLoadingTextInline: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  captchaVerifiedContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 6,
+  },
+  captchaVerifiedText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#10B981",
+  },
+  securityNoticeBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  securityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  securityTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  securityList: {
+    gap: 6,
+  },
+  securityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  securityBullet: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: TealColors.primary,
+    lineHeight: 16,
+  },
+  securityItemText: {
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
+    opacity: 0.8,
   },
 });
