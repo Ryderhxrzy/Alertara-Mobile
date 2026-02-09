@@ -51,3 +51,30 @@ export interface CrimeCircleProps {
   radius: number;
   fillColor: string;
 }
+
+/**
+ * Police station data
+ */
+export interface PoliceStation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address: string;
+  phone?: string;
+  barangay?: string;
+}
+
+/**
+ * Nearest police station info with distance and direction
+ */
+export interface NearestPoliceInfo {
+  station: PoliceStation;
+  distance: number; // in kilometers
+  direction: string; // e.g., "North", "Southeast"
+}
+
+/**
+ * Time filter option for crime data
+ */
+export type TimeFilterOption = 'today' | 'week' | 'month' | 'alltime';
