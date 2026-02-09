@@ -118,14 +118,17 @@ export default function HomeScreen() {
               </View>
               <ThemedText style={styles.serviceCardText}>Crime Map</ThemedText>
             </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/submit-tip")}
+            >
               <View
                 style={[
                   styles.serviceIconCircle,
                   { backgroundColor: "#3498DB" },
                 ]}
               >
-                <IconSymbol size={28} name="chevron.right" color="#fff" />
+                <IconSymbol size={28} name="paperplane.fill" color="#fff" />
               </View>
               <ThemedText style={styles.serviceCardText}>Submit Tip</ThemedText>
             </Pressable>
