@@ -20,7 +20,14 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           <Stack.Screen
-            name="crime-map"
+            name="crime-mapping"
+            options={{
+              headerShown: false,
+              presentation: 'card',
+            }}
+          />
+          <Stack.Screen
+            name="submit-tip"
             options={{
               headerShown: false,
               presentation: 'card',
