@@ -9,7 +9,7 @@ import {
   LIGHT_BORDER,
   LIGHT_CARD_BG,
   LIGHT_ICON,
-  TealColors
+  TealColors,
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { Image } from "expo-image";
