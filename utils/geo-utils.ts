@@ -152,3 +152,76 @@ export function clusterPoints<T extends { lat: number; lng: number }>(
 
   return clusters;
 }
+
+/**
+ * Calculate compass direction from one point to another
+ * @param fromLat - Source latitude
+ * @param fromLng - Source longitude
+ * @param toLat - Destination latitude
+ * @param toLng - Destination longitude
+ * @returns Direction string (N, NE, E, SE, S, SW, W, NW)
+ */
+export function calculateDirection(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number
+): string {
+  const dLng = toLng - fromLng;
+  const dLat = toLat - fromLat;
+
+  const angle = Math.atan2(dLng, dLat) * (180 / Math.PI);
+  const normalized = (angle + 360) % 360;
+
+  if (normalized < 22.5 || normalized >= 337.5) return 'North';
+  if (normalized < 67.5) return 'Northeast';
+  if (normalized < 112.5) return 'East';
+  if (normalized < 157.5) return 'Southeast';
+  if (normalized < 202.5) return 'South';
+  if (normalized < 247.5) return 'Southwest';
+  if (normalized < 292.5) return 'West';
+  return 'Northwest';
+}
+
+/**
+ * Find nearest police station to user location
+ * @param userLat - User's latitude
+ * @param userLng - User's longitude
+ * @param stations - Array of police stations
+ * @returns NearestPoliceInfo or null if no stations available
+ */
+export function findNearestPoliceStation(
+  userLat: number,
+  userLng: number,
+  stations: Array<{ latitude: number; longitude: number; id?: string; name?: string; phone?: string; address?: string }>
+): { station: any; distance: number; direction: string } | null {
+  if (stations.length === 0) return null;
+
+  let nearest: { station: any; distance: number; direction: string } | null = null;
+  let minDistance = Infinity;
+
+  for (const station of stations) {
+    const distance = calculateDistance(
+      userLat,
+      userLng,
+      station.latitude,
+      station.longitude
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = {
+        station,
+        distance,
+        direction: calculateDirection(
+          userLat,
+          userLng,
+          station.latitude,
+          station.longitude
+        )
+      };
+    }
+  }
+
+  return nearest;
+}
