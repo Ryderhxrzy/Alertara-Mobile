@@ -42,7 +42,12 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signIn(email, password);
-      router.replace("/(tabs)");
+      // ensure router ready before navigating
+      if (router.isReady) {
+        router.replace("/(tabs)");
+      } else {
+        setTimeout(() => router.replace("/(tabs)"), 0);
+      }
     } catch (error) {
       Alert.alert(
         "Login Failed",
@@ -62,7 +67,11 @@ export default function LoginScreen() {
     try {
       // Set a guest token to allow access
       await signIn("guest@alertara.app", "guest-session");
-      router.replace("/(tabs)");
+      if (router.isReady) {
+        router.replace("/(tabs)");
+      } else {
+        setTimeout(() => router.replace("/(tabs)"), 0);
+      }
     } catch (error) {
       console.error("Error continuing without account:", error);
     }
