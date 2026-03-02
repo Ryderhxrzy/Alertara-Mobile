@@ -88,11 +88,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'space-around',
+    paddingHorizontal: 10,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 5,
   },
   label: {
     fontSize: 12,
@@ -101,9 +103,10 @@ const styles = StyleSheet.create({
   },
   callButtonContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 25 : 18,
+    bottom: Platform.OS === 'ios' ? 15 : 5,
     alignSelf: 'center',
     zIndex: 10,
+    marginHorizontal: 20,
   },
   callButton: {
     width: 70,
