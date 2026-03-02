@@ -106,7 +106,7 @@ export default function HomeScreen() {
           <View style={styles.servicesGrid}>
             <Pressable
               style={styles.serviceIconOnly}
-              onPress={() => router.push("/crime-mapping")}
+              onPress={() => router.push("/map")}
             >
               <View
                 style={[
