@@ -5,11 +5,11 @@ import { IconSymbol } from './ui/icon-symbol';
 import { TealColors } from '@/constants/theme';
 
 export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps) {
+  const callIndex = state.routes.findIndex(r => r.name === 'call');
+  const adjacentSpacing = 40; // spacing reserved on either side of call button
+
   return (
     <View style={styles.container}>
-      const callIndex = state.routes.findIndex(r => r.name === 'call');
-      const adjacentSpacing = 40; // spacing reserved on either side of call button
-
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
@@ -78,14 +78,16 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
             onPress={onPress}
             style={[styles.tab, extraStyle]}
           >
-            <IconSymbol
-              size={24}
-              name={iconName as any}
-              color={isFocused ? TealColors.primary : '#888'}
-            />
-            <Text style={[styles.label, isFocused && { color: TealColors.primary }]}> 
-              {label}
-            </Text>
+            <View style={styles.tabContent}>
+              <IconSymbol
+                size={24}
+                name={iconName as any}
+                color={isFocused ? TealColors.primary : '#888'}
+              />
+              <Text style={[styles.label, isFocused && { color: TealColors.primary }]}> 
+                {label}
+              </Text>
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -109,6 +111,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 5,
+  },
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     fontSize: 12,
