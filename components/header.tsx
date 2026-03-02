@@ -14,35 +14,16 @@ import {
 import { useTheme } from "@/context/theme-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 export function Header() {
   const router = useRouter();
-  const { toggleTheme, isDarkMode, theme } = useTheme();
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const { isDarkMode } = useTheme();
 
   const ICON_COLOR = isDarkMode ? DARK_ICON : LIGHT_ICON;
   const BORDER_COLOR = isDarkMode ? DARK_BORDER : LIGHT_BORDER;
   const BG_COLOR = isDarkMode ? DARK_BACKGROUND : LIGHT_BACKGROUND;
   const BUTTON_BG = isDarkMode ? DARK_CARD_BG : LIGHT_CARD_BG;
-
-  useEffect(() => {
-    Animated.spring(rotateAnim, {
-      toValue: isDarkMode ? 1 : 0,
-      useNativeDriver: true,
-    }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDarkMode]);
-
-  const rotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
-  const handleThemeToggle = () => {
-    toggleTheme();
-  };
 
   return (
     <View
@@ -64,22 +45,12 @@ export function Header() {
         </View>
       </View>
       <View style={styles.iconContainer}>
-        <Animated.View
-          style={{
-            transform: [{ rotate: rotation }],
-          }}
+        <Pressable
+          style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
+          onPress={() => router.push("/(tabs)/notification")}
         >
-          <Pressable
-            style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
-            onPress={handleThemeToggle}
-          >
-            <IconSymbol
-              size={24}
-              name={isDarkMode ? "sun" : "moon"}
-              color={ICON_COLOR}
-            />
-          </Pressable>
-        </Animated.View>
+          <IconSymbol size={24} name="bell" color={ICON_COLOR} />
+        </Pressable>
         <Pressable
           style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
           onPress={() => router.push("/(tabs)/me")}
