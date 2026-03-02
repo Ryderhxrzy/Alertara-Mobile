@@ -33,6 +33,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [navigateAfterLogin, setNavigateAfterLogin] = useState(false);
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
@@ -42,12 +44,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signIn(email, password);
-      // ensure router ready before navigating
-      if (router.isReady) {
-        router.replace("/(tabs)");
-      } else {
-        setTimeout(() => router.replace("/(tabs)"), 0);
-      }
+      setNavigateAfterLogin(true);
     } catch (error) {
       Alert.alert(
         "Login Failed",
@@ -67,15 +64,17 @@ export default function LoginScreen() {
     try {
       // Set a guest token to allow access
       await signIn("guest@alertara.app", "guest-session");
-      if (router.isReady) {
-        router.replace("/(tabs)");
-      } else {
-        setTimeout(() => router.replace("/(tabs)"), 0);
-      }
+      setNavigateAfterLogin(true);
     } catch (error) {
       console.error("Error continuing without account:", error);
     }
   };
+
+  useEffect(() => {
+    if (navigateAfterLogin && router.isReady) {
+      router.replace("/(tabs)");
+    }
+  }, [navigateAfterLogin, router]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
