@@ -37,6 +37,22 @@ export default function TabLayout() {
         }}
       />
 
+      {/* keep notification/settings for routing but hide from bar */}
+      <Tabs.Screen
+        name="notification"
+        options={{
+          title: 'Notification',
+          tabBarButton: () => null,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarButton: () => null,
+        }}
+      />
+
       <Tabs.Screen
         name="me"
         options={{
