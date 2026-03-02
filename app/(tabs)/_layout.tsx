@@ -12,6 +12,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      sceneContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 90 : 70 }}
       screenOptions={{
         tabBarActiveTintColor: Colors[isDarkMode ? 'dark' : 'light'].tint,
         tabBarInactiveTintColor: Colors[isDarkMode ? 'dark' : 'light'].icon,
