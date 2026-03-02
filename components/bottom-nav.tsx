@@ -24,12 +24,7 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
           }
         };
 
-        // hide tabs that have tabBarButton set to null
-        if (options.tabBarButton === null) {
-          return null;
-        }
-
-        // custom call button center
+        // custom call button center - render first before checking if hidden
         if (route.name === 'call') {
           return (
             <TouchableOpacity
@@ -43,6 +38,11 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
               </View>
             </TouchableOpacity>
           );
+        }
+
+        // hide tabs that have custom tabBarButton function (not already handled like call)
+        if (typeof options.tabBarButton === 'function') {
+          return null;
         }
 
         const iconName =
