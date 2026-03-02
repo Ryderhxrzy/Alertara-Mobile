@@ -52,6 +52,8 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
             ? 'bell'
             : route.name === 'map'
             ? 'map'
+            : route.name === 'me'
+            ? 'person'
             : 'circle';
 
         return (

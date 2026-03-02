@@ -36,7 +36,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="notification"
         options={{
-          title: 'Alerts',
+          title: 'Alert & Notif',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="bell" color={color} />,
         }}
       />
@@ -54,6 +54,14 @@ export default function TabLayout() {
         options={{
           title: 'Map',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="map" color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="me"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person" color={color} />,
         }}
       />
     </Tabs>
