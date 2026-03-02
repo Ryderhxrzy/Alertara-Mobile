@@ -21,7 +21,7 @@ export default function TabLayout() {
           borderTopColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
         },
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBar: (props) => <BottomNav {...props} />, // custom nav
       }}>
       <Tabs.Screen
         name="index"
