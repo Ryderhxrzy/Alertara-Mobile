@@ -7,6 +7,9 @@ import { TealColors } from '@/constants/theme';
 export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
     <View style={styles.container}>
+      const callIndex = state.routes.findIndex(r => r.name === 'call');
+      const adjacentSpacing = 40; // spacing reserved on either side of call button
+
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
@@ -56,20 +59,31 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
             ? 'person'
             : 'circle';
 
+        // add extra margin to tabs adjacent to the call button so they don't
+        // overlap with the central floating call circle
+        const extraStyle = {} as any;
+        if (callIndex >= 0) {
+          if (index === callIndex - 1) {
+            extraStyle.marginRight = adjacentSpacing;
+          } else if (index === callIndex + 1) {
+            extraStyle.marginLeft = adjacentSpacing;
+          }
+        }
+
         return (
           <TouchableOpacity
             key={route.key}
             accessibilityRole="button"
             accessibilityState={isFocused ? { selected: true } : {}}
             onPress={onPress}
-            style={styles.tab}
+            style={[styles.tab, extraStyle]}
           >
             <IconSymbol
               size={24}
               name={iconName as any}
               color={isFocused ? TealColors.primary : '#888'}
             />
-            <Text style={[styles.label, isFocused && { color: TealColors.primary }]}>
+            <Text style={[styles.label, isFocused && { color: TealColors.primary }]}> 
               {label}
             </Text>
           </TouchableOpacity>
