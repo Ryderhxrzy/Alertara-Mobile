@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   },
   callButtonContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 15 : 5,
+    bottom: Platform.OS === 'ios' ? 25 : 18,
     alignSelf: 'center',
     zIndex: 10,
   },
