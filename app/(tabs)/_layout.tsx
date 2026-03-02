@@ -1,9 +1,9 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { CallTabButton } from '@/components/call-tab-button';
+import { BottomNav } from '@/components/bottom-nav';
 import { Colors, LIGHT_BORDER, DARK_BORDER, LIGHT_BACKGROUND, DARK_BACKGROUND } from '@/constants/theme';
 import { useTheme } from '@/context/theme-context';
 
@@ -12,7 +12,6 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      sceneContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 90 : 70 }}
       screenOptions={{
         tabBarActiveTintColor: Colors[isDarkMode ? 'dark' : 'light'].tint,
         tabBarInactiveTintColor: Colors[isDarkMode ? 'dark' : 'light'].icon,
@@ -22,8 +21,10 @@ export default function TabLayout() {
           borderTopColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
         },
         headerShown: false,
-        tabBar: (props) => <BottomNav {...props} />, // custom nav
-      }}>
+        sceneStyle: { paddingBottom: Platform.OS === 'ios' ? 90 : 70 },
+      }}
+      tabBar={(props) => <BottomNav {...props} />}
+    >
       <Tabs.Screen
         name="index"
         options={{
@@ -44,7 +45,7 @@ export default function TabLayout() {
         name="call"
         options={{
           title: 'Call',
-          tabBarButton: CallTabButton,
+          tabBarButton: () => null,
         }}
       />
 

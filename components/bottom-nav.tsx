@@ -17,6 +17,7 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
           const event = navigation.emit({
             type: 'tabPress',
             target: route.key,
+            canPreventDefault: true,
           });
           if (!isFocused && !event.defaultPrevented) {
             navigation.navigate(route.name);
@@ -24,7 +25,7 @@ export function BottomNav({ state, descriptors, navigation }: BottomTabBarProps)
         };
 
         // hide tabs that have tabBarButton set to null
-        if (options.tabBarButton === () => null) {
+        if (options.tabBarButton === null) {
           return null;
         }
 

@@ -15,7 +15,7 @@ import {
   TealColors,
 } from "@/constants/theme";
 import { useAuth } from "@/context/auth-context";
-import { usePreferences } from "@/context/preferences-context";
+import { usePreferences, LanguageOption } from "@/context/preferences-context";
 import { useTheme } from "@/context/theme-context";
 import React, { useState } from "react";
 import {
@@ -80,7 +80,7 @@ export default function MeScreen() {
         onPress: async () => {
           try {
             await signOut();
-          } catch (error) {
+          } catch {
             Alert.alert("Error", "Failed to logout");
           }
         },
@@ -231,7 +231,7 @@ export default function MeScreen() {
               { label: "Français", value: "fr" },
               { label: "Tagalog", value: "tl" },
             ]}
-            onSelect={setLanguage}
+            onSelect={(value: string) => setLanguage(value as LanguageOption)}
           />
           <SettingsDivider />
           <SettingsToggle
@@ -252,6 +252,7 @@ export default function MeScreen() {
             value={incidentHistory.calls.toString()}
             icon="phone"
             showChevron={false}
+            onPress={() => {}}
           />
           <SettingsDivider />
           <SettingsMenuItem
@@ -259,6 +260,7 @@ export default function MeScreen() {
             value={incidentHistory.reports.toString()}
             icon="checkmark.circle"
             showChevron={false}
+            onPress={() => {}}
           />
           <SettingsDivider />
           <SettingsMenuItem
@@ -312,6 +314,7 @@ export default function MeScreen() {
             value="1.0.0"
             showChevron={false}
             icon="info.circle"
+            onPress={() => {}}
           />
           <SettingsDivider />
           <SettingsMenuItem
@@ -542,7 +545,7 @@ export default function MeScreen() {
                     3. Disclaimer
                   </ThemedText>
                   {"\n"}
-                  Alertara is provided "as is" without warranties. We are not
+                  Alertara is provided &quot;as is&quot; without warranties. We are not
                   liable for inaccurate location data or incident information.
                   {"\n\n"}
                   <ThemedText style={styles.policySubheading}>
