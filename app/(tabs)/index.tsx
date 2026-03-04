@@ -89,7 +89,7 @@ export default function HomeScreen() {
             placeholderTextColor={isDarkMode ? "#666" : "#999"}
           />
           <View style={styles.searchIconCircle}>
-            <IconSymbol size={20} name="search" color="#fff" />
+            <IconSymbol size={20} name="magnifyingglass" color="#fff" />
           </View>
         </View>
 
@@ -106,7 +106,7 @@ export default function HomeScreen() {
           <View style={styles.servicesGrid}>
             <Pressable
               style={styles.serviceIconOnly}
-              onPress={() => router.push("/crime-mapping")}
+              onPress={() => router.push("/map")}
             >
               <View
                 style={[
@@ -194,7 +194,7 @@ export default function HomeScreen() {
                   { backgroundColor: "#8E44AD" },
                 ]}
               >
-                <IconSymbol size={28} name="send" color="#fff" />
+                <IconSymbol size={28} name="paperplane" color="#fff" />
               </View>
               <ThemedText style={styles.serviceCardText}>Share</ThemedText>
             </Pressable>
@@ -277,7 +277,7 @@ export default function HomeScreen() {
                 { backgroundColor: isDarkMode ? DARK_CARD_BG : "#fff" },
               ]}
             >
-              <IconSymbol size={24} name="menu" color={TealColors.primary} />
+              <IconSymbol size={24} name="line.3.horizontal" color={TealColors.primary} />
             </View>
             <View style={styles.featuredContent}>
               <ThemedText type="subtitle" style={styles.featuredTitle}>
@@ -296,7 +296,7 @@ export default function HomeScreen() {
 
       {/* Message Button */}
       <Pressable style={styles.messageButton} onPress={() => {}}>
-        <IconSymbol size={24} name="chatbubble" color="#fff" />
+        <IconSymbol size={24} name="bubble.right" color="#fff" />
       </Pressable>
     </SafeAreaView>
   );
