@@ -54,13 +54,21 @@ export function BottomNav({
 
         const iconName =
           route.name === "index"
-            ? "house"
+            ? isFocused
+              ? "house.fill"
+              : "house"
             : route.name === "notification"
-              ? "bell"
+              ? isFocused
+                ? "bell.fill"
+                : "bell"
               : route.name === "map"
-                ? "map"
+                ? isFocused
+                  ? "map.fill"
+                  : "map"
                 : route.name === "me"
-                  ? "person"
+                  ? isFocused
+                    ? "person.fill"
+                    : "person"
                   : "circle";
 
         // add extra inner padding to tabs adjacent to the call button so they don't
