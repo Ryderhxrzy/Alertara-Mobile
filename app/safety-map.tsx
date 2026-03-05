@@ -15,6 +15,11 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 export default function SafetyMapScreen() {
   const { isDarkMode } = useTheme();
   const [showLegend, setShowLegend] = useState(true);
+  const [layerVisibility, setLayerVisibility] = useState({
+    alert: true,
+    weather: true,
+    evac: true,
+  });
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedMarkerData, setSelectedMarkerData] = useState<any>(null);
@@ -26,6 +31,13 @@ export default function SafetyMapScreen() {
   } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const qcBoundaryCoordinates = getQCBoundaryCoordinates();
+
+  const toggleLayer = (layer: "alert" | "weather" | "evac") => {
+    setLayerVisibility((prev) => ({
+      ...prev,
+      [layer]: !prev[layer],
+    }));
+  };
 
   const nearestEvacuation = useMemo(() => {
     if (!userLocation) return null;
@@ -81,8 +93,8 @@ export default function SafetyMapScreen() {
             coordinates={qcBoundaryCoordinates}
             borderColor="#60A5FA"
             userLocation={userLocation}
-            crimeData={[]}
-            evacuationLocations={evacuationLocations}
+            crimeData={layerVisibility.alert ? [] : []}
+            evacuationLocations={layerVisibility.evac ? evacuationLocations : []}
             nearestEvacuationId={nearestEvacuation?.site.id ?? null}
             isLoadingCrimeData={false}
             onMapPress={() => setShowInfoPanel(true)}
@@ -96,7 +108,12 @@ export default function SafetyMapScreen() {
       </View>
 
       {/* Quick Actions */}
-      <View style={styles.quickActions}>
+      <View
+        style={[
+          styles.quickActions,
+          { bottom: showInfoPanel ? 220 : 86 },
+        ]}
+      >
         <Pressable
           style={[
             styles.quickActionButton,
@@ -158,7 +175,7 @@ export default function SafetyMapScreen() {
           color={TealColors.primary}
         />
         <ThemedText style={styles.legendToggleText}>
-          {showLegend ? "Hide" : "Show"} Legend
+          {showLegend ? "Hide" : "Show"} Layers & Legend
         </ThemedText>
       </Pressable>
 
@@ -191,6 +208,60 @@ export default function SafetyMapScreen() {
           <ThemedText style={styles.legendGuide}>
             Blue = Low density | Red = High density
           </ThemedText>
+
+          <View style={styles.legendDivider} />
+          <ThemedText style={styles.legendSectionTitle}>Map Layers</ThemedText>
+
+          <Pressable
+            style={styles.checkboxRow}
+            onPress={() => toggleLayer("alert")}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                layerVisibility.alert && styles.checkboxChecked,
+              ]}
+            >
+              {layerVisibility.alert && (
+                <IconSymbol name="checkmark" size={12} color="#ffffff" />
+              )}
+            </View>
+            <ThemedText style={styles.checkboxLabel}>Alert</ThemedText>
+          </Pressable>
+
+          <Pressable
+            style={styles.checkboxRow}
+            onPress={() => toggleLayer("weather")}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                layerVisibility.weather && styles.checkboxChecked,
+              ]}
+            >
+              {layerVisibility.weather && (
+                <IconSymbol name="checkmark" size={12} color="#ffffff" />
+              )}
+            </View>
+            <ThemedText style={styles.checkboxLabel}>Weather Forecast</ThemedText>
+          </Pressable>
+
+          <Pressable
+            style={styles.checkboxRow}
+            onPress={() => toggleLayer("evac")}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                layerVisibility.evac && styles.checkboxChecked,
+              ]}
+            >
+              {layerVisibility.evac && (
+                <IconSymbol name="checkmark" size={12} color="#ffffff" />
+              )}
+            </View>
+            <ThemedText style={styles.checkboxLabel}>Evac Area</ThemedText>
+          </Pressable>
         </View>
       )}
 
@@ -334,10 +405,42 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     opacity: 0.8,
   },
+  legendDivider: {
+    height: 1,
+    backgroundColor: "rgba(148, 163, 184, 0.35)",
+    marginVertical: 10,
+  },
+  legendSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: TealColors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  checkboxChecked: {
+    backgroundColor: TealColors.primary,
+  },
+  checkboxLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
   quickActions: {
     position: "absolute",
-    top: 20,
-    left: 16,
+    right: 16,
     gap: 10,
   },
   quickActionButton: {
