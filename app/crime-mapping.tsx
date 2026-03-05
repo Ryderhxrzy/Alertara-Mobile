@@ -1,311 +1,139 @@
-/**
- * Crime Map Screen
- * Shows overview of crime mapping service with user location, time filtering, and police info
- */
-
-import { Header } from "@/components/header";
-import { SafetyScore } from "@/components/crime-map/safety-score";
-import { TimeFilter } from "@/components/crime-map/time-filter";
-import { LeafletMap } from "@/components/leaflet-map";
+import { GoogleMap } from "@/components/google-map";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import {
-  DARK_BORDER,
-  DARK_CARD_BG,
-  LIGHT_BORDER,
-  LIGHT_CARD_BG,
-  TealColors,
-} from "@/constants/theme";
+import { TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
-import { CrimeApiService } from "@/services/crime/crime-api-service";
 import { LocationService } from "@/services/location/location-service";
-import type {
-  CrimeDataPoint,
-  TimeFilterOption,
-  UserLocation,
-} from "@/types/crime";
-import { filterCrimeDataByTime } from "@/utils/crime-filter-utils";
+import type { UserLocation } from "@/types/crime";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
-import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 export default function CrimeMapScreen() {
   const { isDarkMode } = useTheme();
-  const router = useRouter();
-  const qcBoundaryCoordinates = getQCBoundaryCoordinates();
-
-  // User location state
+  const [showLegend, setShowLegend] = useState(true);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
-
-  // Crime data state
-  const [allCrimeData, setAllCrimeData] = useState<CrimeDataPoint[]>([]);
-  const [filteredCrimeData, setFilteredCrimeData] = useState<CrimeDataPoint[]>(
-    [],
-  );
-  const [isLoadingCrimeData, setIsLoadingCrimeData] = useState(true);
-
-  // Time filter state
-  const [selectedTimeFilter, setSelectedTimeFilter] =
-    useState<TimeFilterOption>("alltime");
+  const qcBoundaryCoordinates = getQCBoundaryCoordinates();
 
   // Fetch user location on mount
   useEffect(() => {
-    const fetchUserLocation = async () => {
-      setIsLoadingLocation(true);
+    const fetchLocation = async () => {
       try {
         const location = await LocationService.getCurrentLocation();
         if (location) {
           setUserLocation(location);
-          console.log("User location acquired:", location);
+          console.log("User location:", location);
         }
       } catch (error) {
-        console.error("Error fetching location:", error);
+        console.error("Failed to get location:", error);
       } finally {
         setIsLoadingLocation(false);
       }
     };
 
-    fetchUserLocation();
+    fetchLocation();
   }, []);
-
-  // Fetch crime data on mount
-  useEffect(() => {
-    const fetchCrimeData = async () => {
-      setIsLoadingCrimeData(true);
-      try {
-        const data = await CrimeApiService.fetchCrimeHeatmap();
-        setAllCrimeData(data);
-        console.log("Crime data fetched:", data.length, "points");
-      } catch (error) {
-        console.error("Failed to fetch crime data:", error);
-      } finally {
-        setIsLoadingCrimeData(false);
-      }
-    };
-
-    fetchCrimeData();
-  }, []);
-
-  // Filter crime data when time filter changes
-  useEffect(() => {
-    if (allCrimeData.length > 0) {
-      const filtered = filterCrimeDataByTime(allCrimeData, selectedTimeFilter);
-      setFilteredCrimeData(filtered);
-      console.log(
-        "Filtered crime data:",
-        filtered.length,
-        "points for",
-        selectedTimeFilter,
-      );
-    }
-  }, [allCrimeData, selectedTimeFilter]);
-
-  const features = [
-    {
-      title: "User Location",
-      description: "Auto-detect and focus on your current location",
-      icon: "location",
-      color: "#3a7675",
-    },
-    {
-      title: "Time Filtering",
-      description:
-        "Filter crime data by time range (Today, 7 days, 30 days, All Time)",
-      icon: "clock",
-      color: "#10B981",
-    },
-    {
-      title: "Safety Score",
-      description: "Get real-time area safety assessment and crime statistics",
-      icon: "shield",
-      color: "#10B981",
-    },
-  ];
-
-  const moreServices = [
-    {
-      title: "Submit Tip",
-      icon: "chevron.right",
-      color: "#3498DB",
-    },
-    {
-      title: "Alerts",
-      icon: "bell",
-      color: "#3a7675",
-    },
-    {
-      title: "Profile",
-      icon: "person",
-      color: "#9B59B6",
-    },
-    {
-      title: "Settings",
-      icon: "gear",
-      color: "#F39C12",
-    },
-  ];
 
   return (
     <ThemedView style={styles.container}>
-      <Header />
-      <Pressable
-        onPress={() => router.back()}
-        style={styles.backButtonContainer}
-      >
-        <IconSymbol
-          name="arrow.left"
-          size={24}
-          color={TealColors.primary}
-        />
-        <ThemedText style={styles.backButtonText}>Back</ThemedText>
-      </Pressable>
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          <View
-            style={[
-              styles.heroIcon,
-              { backgroundColor: "rgba(239, 68, 68, 0.1)" },
-            ]}
-          >
-            <IconSymbol size={48} name="map" color="#EF4444" />
-          </View>
-          <ThemedText style={styles.heroTitle}>Crime Mapping</ThemedText>
-          <ThemedText style={styles.heroDescription}>
-            Explore crime incidents and safety patterns across Quezon City with
-            our comprehensive mapping service.
-          </ThemedText>
-        </View>
-
-        {/* Features Horizontal Scroll */}
-        <View style={styles.featuresSection}>
-          <ThemedText style={styles.sectionTitle}>Service Features</ThemedText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.featuresScroll}
-          >
-            {features.map((feature, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.featureCard,
-                  {
-                    backgroundColor: isDarkMode ? DARK_CARD_BG : LIGHT_CARD_BG,
-                    borderColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.featureIcon,
-                    { backgroundColor: `${feature.color}20` },
-                  ]}
-                >
-                  <IconSymbol
-                    size={24}
-                    name={feature.icon}
-                    color={feature.color}
-                  />
-                </View>
-                <ThemedText style={styles.featureTitle}>
-                  {feature.title}
-                </ThemedText>
-                <ThemedText style={styles.featureDescription}>
-                  {feature.description}
-                </ThemedText>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Time Filter Section */}
-        <View style={styles.filterSection}>
-          <ThemedText style={styles.sectionTitle}>Time Range</ThemedText>
-          <TimeFilter
-            selectedFilter={selectedTimeFilter}
-            onFilterChange={setSelectedTimeFilter}
-          />
-        </View>
-
-        {/* Safety Score Section */}
-        {userLocation && (
-          <SafetyScore
-            userLatitude={userLocation.latitude}
-            userLongitude={userLocation.longitude}
-            crimeData={filteredCrimeData}
-            radiusKm={2}
+      {/* Map Area */}
+      <View style={styles.mapContainer}>
+        {isLoadingLocation ? (
+          <ActivityIndicator size="large" color={TealColors.primary} />
+        ) : (
+          <GoogleMap
+            coordinates={qcBoundaryCoordinates}
+            borderColor={
+              isDarkMode ? TealColors.primaryLight : TealColors.primary
+            }
+            userLocation={userLocation}
+            crimeData={[]}
+            isLoadingCrimeData={false}
           />
         )}
+      </View>
 
-        {/* Map Section */}
-        <View style={styles.mapSection}>
-          <ThemedText style={styles.sectionTitle}>
-            Quezon City Crime Map
+      {/* Legend Toggle Button */}
+      <Pressable
+        style={[
+          styles.legendToggle,
+          { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
+        ]}
+        onPress={() => setShowLegend(!showLegend)}
+      >
+        <IconSymbol
+          name={showLegend ? "chevron.right" : "chevron.left"}
+          size={20}
+          color={TealColors.primary}
+        />
+        <ThemedText style={styles.legendToggleText}>
+          {showLegend ? "Hide" : "Show"} Legend
+        </ThemedText>
+      </Pressable>
+
+      {/* Legend Panel */}
+      {showLegend && (
+        <View
+          style={[
+            styles.legendPanel,
+            { backgroundColor: isDarkMode ? "#1a202c" : "#f7fafc" },
+          ]}
+        >
+          <ThemedText style={styles.legendTitle}>Crime Density</ThemedText>
+
+          {/* Color Scale */}
+          <View style={styles.colorScale}>
+            <View style={[styles.colorBox, { backgroundColor: "#0000ff" }]} />
+            <View style={[styles.colorBox, { backgroundColor: "#00ff00" }]} />
+            <View style={[styles.colorBox, { backgroundColor: "#ffff00" }]} />
+            <View style={[styles.colorBox, { backgroundColor: "#ff8800" }]} />
+            <View style={[styles.colorBox, { backgroundColor: "#ff0000" }]} />
+          </View>
+
+          {/* Labels */}
+          <View style={styles.legendLabels}>
+            <ThemedText style={styles.legendLabel}>Low</ThemedText>
+            <ThemedText style={styles.legendLabel}>High</ThemedText>
+          </View>
+
+          {/* Guide */}
+          <ThemedText style={styles.legendGuide}>
+            Blue = Low density | Red = High density
           </ThemedText>
-          <View
-            style={[
-              styles.mapContainer,
-              {
-                backgroundColor: isDarkMode ? DARK_CARD_BG : LIGHT_CARD_BG,
-                borderColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
-              },
-            ]}
-          >
-            <LeafletMap
-              coordinates={qcBoundaryCoordinates}
-              borderColor={
-                isDarkMode ? TealColors.primaryLight : TealColors.primary
-              }
-              userLocation={userLocation}
-              crimeData={filteredCrimeData}
-              isLoadingCrimeData={isLoadingCrimeData}
-            />
-          </View>
+        </View>
+      )}
+
+      {/* Bottom Info Panel */}
+      <View
+        style={[
+          styles.infoPanel,
+          { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
+        ]}
+      >
+        <View style={styles.infoPanelHeader}>
+          <IconSymbol name="location" size={24} color={TealColors.primary} />
+          <ThemedText style={styles.infoPanelTitle}>
+            Area Information
+          </ThemedText>
         </View>
 
-        {/* More Services Section */}
-        <View style={styles.moreServicesSection}>
-          <View style={styles.sectionTitleContainer}>
-            <ThemedText style={styles.sectionTitle}>
-              You May Also Like
-            </ThemedText>
-            <IconSymbol
-              size={20}
-              name="chevron.right"
-              color={isDarkMode ? "#60A5FA" : "#3B82F6"}
-            />
+        <ThemedText style={styles.infoPanelSubtitle}>
+          Tap on map to view details
+        </ThemedText>
+
+        <View style={styles.infoPanelStats}>
+          <View style={styles.statItem}>
+            <ThemedText style={styles.statLabel}>Incidents</ThemedText>
+            <ThemedText style={styles.statValue}>--</ThemedText>
           </View>
-          <View style={styles.servicesGridCircle}>
-            {moreServices.map((service, index) => (
-              <Pressable
-                key={index}
-                style={styles.serviceIconOnly}
-                onPress={() => {
-                  if (service.title === "Submit Tip") {
-                    router.push("/submit-tip");
-                  }
-                }}
-              >
-                <View
-                  style={[
-                    styles.serviceIconCircle,
-                    { backgroundColor: service.color },
-                  ]}
-                >
-                  <IconSymbol size={28} name={service.icon} color="#fff" />
-                </View>
-                <ThemedText style={styles.serviceCardText}>
-                  {service.title}
-                </ThemedText>
-              </Pressable>
-            ))}
+          <View style={styles.statItem}>
+            <ThemedText style={styles.statLabel}>Safety Score</ThemedText>
+            <ThemedText style={styles.statValue}>--/10</ThemedText>
           </View>
         </View>
-      </ScrollView>
+      </View>
     </ThemedView>
   );
 }
@@ -314,152 +142,114 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  filterSection: {
-    marginVertical: 12,
-  },
-  backButtonContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  backButton: {
-    position: "absolute",
-    top: 60,
-    left: 16,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroSection: {
-    alignItems: "center",
-    paddingVertical: 32,
-  },
-  heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  heroDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: "center",
-    paddingHorizontal: 16,
-    opacity: 0.8,
-  },
-  featuresSection: {
-    marginVertical: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  featuresScroll: {
-    flexGrow: 0,
-  },
-  featureCard: {
-    width: 160,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    marginRight: 12,
-  },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  featureTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 12,
-    textAlign: "center",
-    opacity: 0.7,
-  },
-  mapSection: {
-    marginVertical: 16,
-    marginBottom: 16,
-  },
   mapContainer: {
-    height: 550,
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: 16,
-  },
-  map: {
-    width: "100%",
-    height: 550,
-    borderRadius: 12,
-  },
-  sampleMarker: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#EF4444",
-    position: "absolute",
-  },
-  sectionTitleContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  moreServicesSection: {
-    marginVertical: 16,
-    marginBottom: 40,
-  },
-  servicesGridCircle: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  serviceIconOnly: {
     flex: 1,
-    alignItems: "center",
+    backgroundColor: "#e0e0e0",
   },
-  serviceIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
+  legendToggle: {
+    position: "absolute",
+    top: 20,
+    right: 16,
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  legendToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  legendPanel: {
+    position: "absolute",
+    top: 80,
+    right: 16,
+    width: 180,
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  legendTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  colorScale: {
+    flexDirection: "row",
+    height: 24,
+    marginBottom: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  colorBox: {
+    flex: 1,
+  },
+  legendLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
-  serviceCardText: {
+  legendLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  legendGuide: {
+    fontSize: 11,
+    lineHeight: 16,
+    opacity: 0.8,
+  },
+  infoPanel: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  infoPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  infoPanelTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  infoPanelSubtitle: {
+    fontSize: 13,
+    marginBottom: 12,
+    opacity: 0.7,
+  },
+  infoPanelStats: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statLabel: {
     fontSize: 12,
-    fontWeight: "500",
-    textAlign: "center",
+    opacity: 0.7,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: TealColors.primary,
   },
 });
