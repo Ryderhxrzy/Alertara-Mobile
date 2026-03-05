@@ -1,2 +1,3 @@
-import CrimeMapScreen from '../crime-mapping';
-export default CrimeMapScreen;
+import SafetyMapScreen from "../safety-map";
+
+export default SafetyMapScreen;

@@ -1,6 +1,6 @@
 /**
- * Compatibility wrapper for old path imports.
- * Mirrors map/safety-score to keep existing references working.
+ * Safety Score Component
+ * Displays area safety rating and crime statistics for user's location
  */
 
 import { ThemedText } from "@/components/themed-text";
@@ -9,7 +9,7 @@ import {
   DARK_BORDER,
   DARK_CARD_BG,
   LIGHT_BORDER,
-  LIGHT_CARD_BG,
+  LIGHT_CARD_BG
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import type { CrimeDataPoint, SafetyStatus } from "@/types/crime";
@@ -64,12 +64,13 @@ export function SafetyScore({
 }: SafetyScoreProps) {
   const { isDarkMode } = useTheme();
 
+  // Calculate safety score based on crime data
   const safetyStatus = useMemo<SafetyStatus>(() => {
     return calculateSafetyScore(
       userLatitude,
       userLongitude,
       crimeData,
-      radiusKm
+      radiusKm,
     );
   }, [userLatitude, userLongitude, crimeData, radiusKm]);
 
@@ -87,7 +88,10 @@ export function SafetyScore({
     >
       <View style={styles.header}>
         <View
-          style={[styles.iconContainer, { backgroundColor: levelConfig.bgColor }]}
+          style={[
+            styles.iconContainer,
+            { backgroundColor: levelConfig.bgColor },
+          ]}
         >
           <IconSymbol
             name={levelConfig.icon}

@@ -60,13 +60,15 @@ export function IconSymbol({
   color,
   style,
 }: {
-  name: IconSymbolName;
+  name: IconSymbolName | string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
+  const mappedName = MAPPING[name as IconSymbolName] ?? "help-circle-outline";
+
   return (
-    <Ionicons color={color} size={size} name={MAPPING[name]} style={style} />
+    <Ionicons color={color} size={size} name={mappedName} style={style} />
   );
 }
