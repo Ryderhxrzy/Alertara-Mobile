@@ -2,13 +2,12 @@ import { TealColors } from "@/constants/theme";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React from "react";
 import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { EmergencyCallButton } from "./emergency-call-button";
 import { IconSymbol } from "./ui/icon-symbol";
 
 export function BottomNav({
@@ -41,9 +40,16 @@ export function BottomNav({
         // custom call button center - render first before checking if hidden
         if (route.name === "call") {
           return (
-            <View key={route.key} style={styles.callButtonContainer}>
-              <EmergencyCallButton onPress={onPress} />
-            </View>
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              style={styles.callButtonContainer}
+              activeOpacity={0.7}
+            >
+              <View style={styles.callButton}>
+                <IconSymbol name="phone" size={28} color="#fff" />
+              </View>
+            </TouchableOpacity>
           );
         }
 
@@ -125,15 +131,11 @@ const styles = StyleSheet.create({
   tabContent: {
     alignItems: "center",
     justifyContent: "center",
-    // explicitly stack icon above text
-    flexDirection: "column",
   },
   label: {
     fontSize: 12,
     marginTop: 2,
     color: "#888",
-    // ensure multi-line labels are centered beneath the icon
-    textAlign: "center",
   },
   callButtonContainer: {
     position: "absolute",
@@ -142,5 +144,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
     marginHorizontal: 20,
   },
-  // styling for the legacy teal button is no longer used; handled inside EmergencyCallButton
+  callButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: TealColors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
 });
