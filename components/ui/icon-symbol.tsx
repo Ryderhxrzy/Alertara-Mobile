@@ -35,6 +35,7 @@ const MAPPING = {
   chatbubble: "chatbubble",
   moon: "moon",
   sun: "sunny",
+  cloud: "cloud-outline",
   "arrow.left": "chevron-back",
   "map.fill": "map",
   map: "map-outline",

@@ -4,13 +4,37 @@ import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
+import { barangayWeatherPoints } from "@/data/barangay-weather-points";
 import { evacuationLocations, type EvacuationLocation, floodProneBarangays } from "@/data/evacuation-locations";
 import { LocationService } from "@/services/location/location-service";
 import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+
+const EMPTY_CRIME_DATA: never[] = [];
+
+interface WeatherMarkerData {
+  id: string;
+  barangay: string;
+  latitude: number;
+  longitude: number;
+  temperatureC: number | null;
+  weatherLabel: string;
+}
+
+function weatherCodeToLabel(code: number | null | undefined): string {
+  if (code === null || code === undefined) return "Unavailable";
+  if (code === 0) return "Clear";
+  if (code <= 3) return "Cloudy";
+  if (code <= 48) return "Fog";
+  if (code <= 67) return "Rain";
+  if (code <= 77) return "Snow";
+  if (code <= 82) return "Shower";
+  if (code <= 99) return "Storm";
+  return "Unavailable";
+}
 
 export default function SafetyMapScreen() {
   const { isDarkMode } = useTheme();
@@ -30,14 +54,37 @@ export default function SafetyMapScreen() {
     key: string;
   } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
-  const qcBoundaryCoordinates = getQCBoundaryCoordinates();
+  const [weatherMarkers, setWeatherMarkers] = useState<WeatherMarkerData[]>([]);
+  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+  const [hasAttemptedWeatherFetch, setHasAttemptedWeatherFetch] = useState(false);
+  const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
 
-  const toggleLayer = (layer: "alert" | "weather" | "evac") => {
+  const toggleLayer = useCallback((layer: "alert" | "weather" | "evac") => {
     setLayerVisibility((prev) => ({
       ...prev,
       [layer]: !prev[layer],
     }));
-  };
+  }, []);
+
+  const activeEvacuationLocations = useMemo(
+    () => (layerVisibility.evac ? evacuationLocations : []),
+    [layerVisibility.evac]
+  );
+
+  const activeWeatherMarkers = useMemo(
+    () => (layerVisibility.weather ? weatherMarkers : []),
+    [layerVisibility.weather, weatherMarkers]
+  );
+
+  const floodProneText = useMemo(
+    () => floodProneBarangays.join(", "),
+    []
+  );
+
+  const quickActionsDynamicStyle = useMemo(
+    () => ({ bottom: showInfoPanel ? 220 : 86 }),
+    [showInfoPanel]
+  );
 
   const nearestEvacuation = useMemo(() => {
     if (!userLocation) return null;
@@ -82,6 +129,120 @@ export default function SafetyMapScreen() {
     fetchLocation();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchWeather = async () => {
+      if (
+        !layerVisibility.weather ||
+        weatherMarkers.length > 0 ||
+        isLoadingWeather ||
+        hasAttemptedWeatherFetch
+      ) {
+        return;
+      }
+
+      setHasAttemptedWeatherFetch(true);
+      setIsLoadingWeather(true);
+      try {
+        const nextWeather = await Promise.all(
+          barangayWeatherPoints.map(async (point) => {
+            const response = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${point.latitude}&longitude=${point.longitude}&current=temperature_2m,weather_code&timezone=Asia%2FManila`
+            );
+
+            if (!response.ok) {
+              throw new Error(`Weather API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const temp = data?.current?.temperature_2m;
+            const weatherCode = data?.current?.weather_code;
+
+            return {
+              id: point.id,
+              barangay: point.barangay,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              temperatureC: typeof temp === "number" ? Math.round(temp) : null,
+              weatherLabel: weatherCodeToLabel(weatherCode),
+            };
+          })
+        );
+
+        if (mounted) {
+          setWeatherMarkers(nextWeather);
+        }
+      } catch (error) {
+        console.error("Failed to fetch barangay weather:", error);
+        if (mounted) {
+          setWeatherMarkers(
+            barangayWeatherPoints.map((point) => ({
+              id: point.id,
+              barangay: point.barangay,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              temperatureC: null,
+              weatherLabel: "Unavailable",
+            }))
+          );
+        }
+      } finally {
+        if (mounted) {
+          setIsLoadingWeather(false);
+        }
+      }
+    };
+
+    fetchWeather();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    layerVisibility.weather,
+    weatherMarkers.length,
+    isLoadingWeather,
+    hasAttemptedWeatherFetch,
+  ]);
+
+  const handleMapPress = useCallback(() => {
+    setShowInfoPanel(true);
+  }, []);
+
+  const handleMarkerPress = useCallback((marker: any) => {
+    setSelectedMarkerData(marker);
+    setShowInfoPanel(true);
+  }, []);
+
+  const handleFindMe = useCallback(() => {
+    if (!userLocation) return;
+
+    setFocusTarget({
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+      zoomDelta: 0.02,
+      key: `find-me-${Date.now()}`,
+    });
+    setShowInfoPanel(true);
+  }, [userLocation]);
+
+  const handleNearestEvac = useCallback(() => {
+    if (!nearestEvacuation) return;
+
+    setFocusTarget({
+      latitude: nearestEvacuation.site.latitude,
+      longitude: nearestEvacuation.site.longitude,
+      zoomDelta: 0.025,
+      key: `nearest-evac-${Date.now()}`,
+    });
+    setSelectedMarkerData({
+      type: "evacuation",
+      data: nearestEvacuation.site,
+    });
+    setShowInfoPanel(true);
+  }, [nearestEvacuation]);
+
   return (
     <ThemedView style={styles.container}>
       {/* Map Area */}
@@ -93,15 +254,13 @@ export default function SafetyMapScreen() {
             coordinates={qcBoundaryCoordinates}
             borderColor="#60A5FA"
             userLocation={userLocation}
-            crimeData={layerVisibility.alert ? [] : []}
-            evacuationLocations={layerVisibility.evac ? evacuationLocations : []}
+            crimeData={layerVisibility.alert ? EMPTY_CRIME_DATA : EMPTY_CRIME_DATA}
+            evacuationLocations={activeEvacuationLocations}
+            weatherMarkers={activeWeatherMarkers}
             nearestEvacuationId={nearestEvacuation?.site.id ?? null}
             isLoadingCrimeData={false}
-            onMapPress={() => setShowInfoPanel(true)}
-            onMarkerPress={(marker) => {
-              setSelectedMarkerData(marker);
-              setShowInfoPanel(true);
-            }}
+            onMapPress={handleMapPress}
+            onMarkerPress={handleMarkerPress}
             focusTarget={focusTarget}
           />
         )}
@@ -111,7 +270,7 @@ export default function SafetyMapScreen() {
       <View
         style={[
           styles.quickActions,
-          { bottom: showInfoPanel ? 220 : 86 },
+          quickActionsDynamicStyle,
         ]}
       >
         <Pressable
@@ -119,17 +278,7 @@ export default function SafetyMapScreen() {
             styles.quickActionButton,
             { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
           ]}
-          onPress={() => {
-            if (!userLocation) return;
-
-            setFocusTarget({
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              zoomDelta: 0.02,
-              key: `find-me-${Date.now()}`,
-            });
-            setShowInfoPanel(true);
-          }}
+          onPress={handleFindMe}
         >
           <IconSymbol name="person.fill" size={16} color="#0E74FF" />
           <ThemedText style={styles.quickActionText}>Find Me</ThemedText>
@@ -140,21 +289,7 @@ export default function SafetyMapScreen() {
             styles.quickActionButton,
             { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
           ]}
-          onPress={() => {
-            if (!nearestEvacuation) return;
-
-            setFocusTarget({
-              latitude: nearestEvacuation.site.latitude,
-              longitude: nearestEvacuation.site.longitude,
-              zoomDelta: 0.025,
-              key: `nearest-evac-${Date.now()}`,
-            });
-            setSelectedMarkerData({
-              type: "evacuation",
-              data: nearestEvacuation.site,
-            });
-            setShowInfoPanel(true);
-          }}
+          onPress={handleNearestEvac}
         >
           <IconSymbol name="building" size={16} color="#B45309" />
           <ThemedText style={styles.quickActionText}>Nearest Evac</ThemedText>
@@ -305,6 +440,12 @@ export default function SafetyMapScreen() {
           <ThemedText style={styles.infoPanelSubtitle}>
             {selectedMarkerData?.type === "evacuation"
               ? `Selected Evac: ${selectedMarkerData.data.name}`
+              : selectedMarkerData?.type === "weather"
+              ? `${selectedMarkerData.data.barangay}: ${selectedMarkerData.data.weatherLabel}${
+                  selectedMarkerData.data.temperatureC !== null
+                    ? `, ${selectedMarkerData.data.temperatureC}°C`
+                    : ""
+                }`
               : selectedMarkerData?.type === "user"
               ? "Your current location"
               : "Tap on map to view details"}
@@ -327,7 +468,7 @@ export default function SafetyMapScreen() {
             </View>
           </View>
           <ThemedText style={styles.floodNote}>
-            Flood-prone barangays: {floodProneBarangays.join(", ")}
+            Flood-prone barangays: {floodProneText}
           </ThemedText>
         </View>
       )}
@@ -541,3 +682,5 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
+
+

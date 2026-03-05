@@ -1,16 +1,18 @@
 import { TealColors } from "@/constants/theme";
 import type { EvacuationLocation } from "@/data/evacuation-locations";
 import type { CrimeDataPoint, UserLocation } from "@/types/crime";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import MapView, {
-  Marker,
-  Polygon,
-  Polyline,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import MapView, { Marker, Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { IconSymbol } from "./ui/icon-symbol";
 import { ThemedText } from "./themed-text";
+
+const INITIAL_REGION = {
+  latitude: 14.628,
+  longitude: 121.044,
+  latitudeDelta: 0.15,
+  longitudeDelta: 0.15,
+};
 
 interface GoogleMapProps {
   coordinates: { latitude: number; longitude: number }[];
@@ -18,6 +20,14 @@ interface GoogleMapProps {
   userLocation?: UserLocation | null;
   crimeData?: CrimeDataPoint[];
   evacuationLocations?: EvacuationLocation[];
+  weatherMarkers?: Array<{
+    id: string;
+    barangay: string;
+    latitude: number;
+    longitude: number;
+    temperatureC: number | null;
+    weatherLabel: string;
+  }>;
   nearestEvacuationId?: string | null;
   isLoadingCrimeData?: boolean;
   onMapReady?: () => void;
@@ -31,12 +41,13 @@ interface GoogleMapProps {
   } | null;
 }
 
-export function GoogleMap({
+function GoogleMapComponent({
   coordinates,
   borderColor = "#60A5FA",
   userLocation,
   crimeData = [],
   evacuationLocations = [],
+  weatherMarkers = [],
   nearestEvacuationId = null,
   isLoadingCrimeData = false,
   onMapReady,
@@ -45,6 +56,7 @@ export function GoogleMap({
   focusTarget,
 }: GoogleMapProps) {
   const mapRef = useRef<MapView>(null);
+
   const boundaryPath = useMemo(() => {
     if (coordinates.length === 0) return [];
     const first = coordinates[0];
@@ -55,16 +67,18 @@ export function GoogleMap({
     return isClosed ? coordinates : [...coordinates, first];
   }, [coordinates]);
 
-  // Center on Quezon City
-  const initialRegion = {
-    latitude: 14.628,
-    longitude: 121.044,
-    latitudeDelta: 0.15,
-    longitudeDelta: 0.15,
-  };
+  const userCoordinate = useMemo(
+    () =>
+      userLocation
+        ? {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          }
+        : null,
+    [userLocation]
+  );
 
-  const handleMapReady = () => {
-    // Keep the full QC coverage boundary in view for reliable context.
+  const handleMapReady = useCallback(() => {
     if (coordinates.length > 0) {
       mapRef.current?.fitToCoordinates(coordinates, {
         edgePadding: { top: 60, right: 40, bottom: 60, left: 40 },
@@ -73,7 +87,7 @@ export function GoogleMap({
     }
 
     onMapReady?.();
-  };
+  }, [coordinates, onMapReady]);
 
   useEffect(() => {
     if (!focusTarget || !mapRef.current) return;
@@ -95,7 +109,7 @@ export function GoogleMap({
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={initialRegion}
+        initialRegion={INITIAL_REGION}
         onMapReady={handleMapReady}
         onPress={onMapPress}
         zoomEnabled
@@ -103,7 +117,6 @@ export function GoogleMap({
         pitchEnabled
         rotateEnabled
       >
-        {/* QC Boundary Polygon */}
         {coordinates.length > 0 && (
           <Polygon
             coordinates={coordinates}
@@ -114,7 +127,6 @@ export function GoogleMap({
           />
         )}
 
-        {/* Dedicated QC border outline for strong visibility on all map styles */}
         {boundaryPath.length > 1 && (
           <Polyline
             coordinates={boundaryPath}
@@ -124,18 +136,13 @@ export function GoogleMap({
           />
         )}
 
-        {/* User Location Marker */}
-        {userLocation && (
+        {userCoordinate && (
           <Marker
-            coordinate={{
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-            }}
+            coordinate={userCoordinate}
             title="You are here"
             description="Current position"
-            onPress={() =>
-              onMarkerPress?.({ type: "user", data: userLocation })
-            }
+            tracksViewChanges={false}
+            onPress={() => onMarkerPress?.({ type: "user", data: userLocation })}
           >
             <View style={styles.userMarkerWrap}>
               <View style={styles.userMarkerInner}>
@@ -145,63 +152,55 @@ export function GoogleMap({
           </Marker>
         )}
 
-        {/* Evacuation Site Markers */}
         {evacuationLocations.map((site) => {
           const isNearest = nearestEvacuationId === site.id;
           return (
             <Marker
               key={site.id}
-              coordinate={{
-                latitude: site.latitude,
-                longitude: site.longitude,
-              }}
+              coordinate={{ latitude: site.latitude, longitude: site.longitude }}
               title={site.name}
               description={`${site.district} evacuation site`}
-              onPress={() =>
-                onMarkerPress?.({ type: "evacuation", data: site })
-              }
-            >
-              <View
-                style={[
-                  styles.evacMarkerWrap,
-                  isNearest ? styles.evacMarkerWrapNearest : null,
-                ]}
-              >
-                <IconSymbol
-                  name="building"
-                  size={16}
-                  color={isNearest ? "#ffffff" : "#7C2D12"}
-                />
-              </View>
-            </Marker>
+              pinColor={isNearest ? "#16A34A" : "#EA580C"}
+              onPress={() => onMarkerPress?.({ type: "evacuation", data: site })}
+            />
           );
         })}
 
-        {/* Crime Data Markers */}
+        {weatherMarkers.map((weather) => (
+          <Marker
+            key={weather.id}
+            coordinate={{ latitude: weather.latitude, longitude: weather.longitude }}
+            title={`${weather.barangay} Weather`}
+            description={`${weather.weatherLabel}${weather.temperatureC !== null ? `, ${weather.temperatureC}°C` : ""}`}
+            pinColor="#3B82F6"
+            onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
+          />
+        ))}
+
         {crimeData.map((crime, index) => (
           <Marker
             key={`crime-${index}`}
             coordinate={{ latitude: crime.lat, longitude: crime.lng }}
             title={`Crime Report ${index + 1}`}
             description={crime.date || "Recent incident"}
+            tracksViewChanges={false}
             pinColor="red"
             onPress={() => onMarkerPress?.({ type: "crime", data: crime })}
           />
         ))}
       </MapView>
 
-      {/* Loading Overlay */}
       {isLoadingCrimeData && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={TealColors.primary} />
-          <ThemedText style={styles.loadingText}>
-            Loading crime data...
-          </ThemedText>
+          <ThemedText style={styles.loadingText}>Loading crime data...</ThemedText>
         </View>
       )}
     </View>
   );
 }
+
+export const GoogleMap = React.memo(GoogleMapComponent);
 
 const styles = StyleSheet.create({
   container: {
@@ -246,18 +245,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffffff",
   },
-  evacMarkerWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#FDBA74",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#9A3412",
-  },
-  evacMarkerWrapNearest: {
-    backgroundColor: "#059669",
-    borderColor: "#065F46",
-  },
 });
+
