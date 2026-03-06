@@ -27,6 +27,8 @@ interface GoogleMapProps {
     longitude: number;
     temperatureC: number | null;
     weatherLabel: string;
+    weatherIcon?: any;
+    forecastTimeLabel?: string | null;
   }>;
   nearestEvacuationId?: string | null;
   isLoadingCrimeData?: boolean;
@@ -56,6 +58,17 @@ function GoogleMapComponent({
   focusTarget,
 }: GoogleMapProps) {
   const mapRef = useRef<MapView>(null);
+
+  const weatherPinColor = useCallback((label: string) => {
+    const text = label.toLowerCase();
+    if (text.includes("thunder")) return "#7C3AED";
+    if (text.includes("rain") || text.includes("drizzle")) return "#2563EB";
+    if (text.includes("snow")) return "#06B6D4";
+    if (text.includes("mist") || text.includes("fog")) return "#64748B";
+    if (text.includes("clear")) return "#F59E0B";
+    if (text.includes("cloud") || text.includes("overcast")) return "#94A3B8";
+    return "#F59E0B";
+  }, []);
 
   const boundaryPath = useMemo(() => {
     if (coordinates.length === 0) return [];
@@ -171,9 +184,10 @@ function GoogleMapComponent({
             key={weather.id}
             coordinate={{ latitude: weather.latitude, longitude: weather.longitude }}
             title={`${weather.barangay} Weather`}
-            description={`${weather.weatherLabel}${weather.temperatureC !== null ? `, ${weather.temperatureC}°C` : ""}`}
-            pinColor="#3B82F6"
+            description={`${weather.weatherLabel}${weather.forecastTimeLabel ? ` at ${weather.forecastTimeLabel}` : ""}${weather.temperatureC !== null ? `, ${weather.temperatureC}\u00B0C` : ""}`}
             onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
+            pinColor={weatherPinColor(weather.weatherLabel)}
+            tracksViewChanges={false}
           />
         ))}
 
@@ -205,7 +219,7 @@ export const GoogleMap = React.memo(GoogleMapComponent);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    overflow: "hidden",
+    overflow: "visible",
   },
   map: {
     width: "100%",

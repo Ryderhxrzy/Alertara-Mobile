@@ -10,10 +10,29 @@ import { LocationService } from "@/services/location/location-service";
 import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Image } from "expo-image";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 const EMPTY_CRIME_DATA: never[] = [];
+
+// API Key for OpenWeatherMap (Should be in .env)
+const OWM_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY;
+
+const WeatherIcons = {
+  sunny: require("../assets/images/weather-forecast-animation/weather_sunny.gif"),
+  broken_clouds: require("../assets/images/weather-forecast-animation/weather_broken_clouds.gif"),
+  mist: require("../assets/images/weather-forecast-animation/weather_mist.gif"),
+  rain: require("../assets/images/weather-forecast-animation/weather_rain.gif"),
+  rainy: require("../assets/images/weather-forecast-animation/weather_rainy.gif"),
+  heavy_rain: require("../assets/images/weather-forecast-animation/weather_heavy_rain.gif"),
+  snow: require("../assets/images/weather-forecast-animation/weather_snow.gif"),
+  thunder: require("../assets/images/weather-forecast-animation/weather_thunder.gif"),
+  thunderstorm: require("../assets/images/weather-forecast-animation/weather_thunderstorm.gif"),
+  clear_day: require("../assets/images/weather-forecast-animation/weather_clear_day.gif"),
+  // weather_default.gif is 0 bytes and causes Metro to crash. Using sunny as default.
+  default: require("../assets/images/weather-forecast-animation/weather_sunny.gif"),
+};
 
 interface WeatherMarkerData {
   id: string;
@@ -22,18 +41,132 @@ interface WeatherMarkerData {
   longitude: number;
   temperatureC: number | null;
   weatherLabel: string;
+  weatherIcon: any;
+  forecastTimeLabel: string | null;
 }
 
-function weatherCodeToLabel(code: number | null | undefined): string {
+const WEATHER_REFRESH_MS = 10 * 60 * 1000;
+const WEATHER_REQUEST_TIMEOUT_MS = 12000;
+const WEATHER_REQUEST_RETRIES = 2;
+
+/**
+ * OpenWeatherMap Condition Codes Mapping
+ * Ref: https://openweathermap.org/weather-conditions
+ */
+function owmCodeToLabel(code: number | null | undefined): string {
   if (code === null || code === undefined) return "Unavailable";
-  if (code === 0) return "Clear";
-  if (code <= 3) return "Cloudy";
-  if (code <= 48) return "Fog";
-  if (code <= 67) return "Rain";
-  if (code <= 77) return "Snow";
-  if (code <= 82) return "Shower";
-  if (code <= 99) return "Storm";
-  return "Unavailable";
+  
+  if (code >= 200 && code <= 232) return "Thunderstorm";
+  if (code >= 300 && code <= 321) return "Drizzle";
+  if (code >= 500 && code <= 531) return "Rain";
+  if (code >= 600 && code <= 622) return "Snow";
+  if (code >= 701 && code <= 781) return "Mist/Fog";
+  if (code === 800) return "Clear Sky";
+  if (code === 801) return "Few Clouds";
+  if (code === 802) return "Scattered Clouds";
+  if (code >= 803 && code <= 804) return "Overcast";
+  
+  return "Unknown";
+}
+
+function owmCodeToIcon(code: number | null | undefined): any {
+  if (code === null || code === undefined) return WeatherIcons.default;
+
+  // Thunderstorm
+  if (code >= 200 && code <= 232) return WeatherIcons.thunderstorm;
+  
+  // Drizzle / Rain
+  if (code >= 300 && code <= 321) return WeatherIcons.rain;
+  if (code >= 500 && code <= 504) return WeatherIcons.rainy; // Light to moderate rain
+  if (code >= 511 && code <= 531) return WeatherIcons.heavy_rain; // Heavy rain or freezing rain
+  
+  // Snow
+  if (code >= 600 && code <= 622) return WeatherIcons.snow;
+  
+  // Atmosphere (Mist, Smoke, Haze, etc.)
+  if (code >= 701 && code <= 781) return WeatherIcons.mist;
+  
+  // Clear
+  if (code === 800) return WeatherIcons.sunny;
+  
+  // Clouds
+  if (code === 801 || code === 802) return WeatherIcons.broken_clouds; // Partly cloudy
+  if (code >= 803 && code <= 804) return WeatherIcons.broken_clouds; // More clouds
+  
+  return WeatherIcons.default;
+}
+
+function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): WeatherMarkerData {
+  return {
+    id: point.id,
+    barangay: point.barangay,
+    latitude: point.latitude,
+    longitude: point.longitude,
+    temperatureC: null,
+    weatherLabel: "Unavailable",
+    weatherIcon: WeatherIcons.default,
+    forecastTimeLabel: null,
+  };
+}
+
+function pickNearestForecastSlot(list: any[]): any | null {
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return list.find((item) => typeof item?.dt === "number" && item.dt >= nowSeconds) ?? list[0];
+}
+
+function formatForecastTimeLabel(dtSeconds: number | undefined): string | null {
+  if (typeof dtSeconds !== "number") return null;
+
+  const date = new Date(dtSeconds * 1000);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchForecastWithRetry(
+  url: string,
+  barangay: string,
+  retries = WEATHER_REQUEST_RETRIES
+): Promise<any> {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WEATHER_REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error("Weather API 401: Key invalid or not yet activated. (It can take up to 2 hours for new OWM keys).");
+        } else {
+          console.error(`Weather API error: ${response.status} for ${barangay}`);
+        }
+        throw new Error(`Weather API error: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+
+      const isLastAttempt = attempt === retries;
+      if (!isLastAttempt) {
+        // Small backoff for transient mobile network failures.
+        await delay(450 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError ?? new Error(`Forecast fetch failed for ${barangay}`);
 }
 
 export default function SafetyMapScreen() {
@@ -55,8 +188,8 @@ export default function SafetyMapScreen() {
   } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const [weatherMarkers, setWeatherMarkers] = useState<WeatherMarkerData[]>([]);
-  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
-  const [hasAttemptedWeatherFetch, setHasAttemptedWeatherFetch] = useState(false);
+  const isFetchingWeatherRef = useRef(false);
+  const hasLoadedWeatherRef = useRef(false);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
 
   const toggleLayer = useCallback((layer: "alert" | "weather" | "evac") => {
@@ -131,33 +264,49 @@ export default function SafetyMapScreen() {
 
   useEffect(() => {
     let mounted = true;
+    let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-    const fetchWeather = async () => {
-      if (
-        !layerVisibility.weather ||
-        weatherMarkers.length > 0 ||
-        isLoadingWeather ||
-        hasAttemptedWeatherFetch
-      ) {
+    const fetchWeather = async ({ showLoadingState }: { showLoadingState: boolean }) => {
+      if (!layerVisibility.weather || isFetchingWeatherRef.current) return;
+
+      if (!OWM_API_KEY) {
+        console.warn(
+          "OpenWeatherMap API Key (EXPO_PUBLIC_OPENWEATHER_API_KEY) is missing in .env. Current OWM_API_KEY:",
+          OWM_API_KEY
+        );
+        if (mounted) {
+          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          hasLoadedWeatherRef.current = true;
+        }
         return;
       }
 
-      setHasAttemptedWeatherFetch(true);
-      setIsLoadingWeather(true);
+      isFetchingWeatherRef.current = true;
+
+      if (mounted && showLoadingState) {
+        setWeatherMarkers(
+          barangayWeatherPoints.map((point) => ({
+            id: point.id,
+            barangay: point.barangay,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            temperatureC: null,
+            weatherLabel: "Loading...",
+            weatherIcon: WeatherIcons.default,
+            forecastTimeLabel: null,
+          }))
+        );
+      }
+
       try {
-        const nextWeather = await Promise.all(
+        const nextWeatherResults = await Promise.allSettled(
           barangayWeatherPoints.map(async (point) => {
-            const response = await fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${point.latitude}&longitude=${point.longitude}&current=temperature_2m,weather_code&timezone=Asia%2FManila`
-            );
-
-            if (!response.ok) {
-              throw new Error(`Weather API error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const temp = data?.current?.temperature_2m;
-            const weatherCode = data?.current?.weather_code;
+            const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${point.latitude}&lon=${point.longitude}&units=metric&appid=${OWM_API_KEY}`;
+            const data = await fetchForecastWithRetry(url, point.barangay);
+            const nearestSlot = pickNearestForecastSlot(data?.list);
+            const temp = nearestSlot?.main?.temp;
+            const weatherCode = nearestSlot?.weather?.[0]?.id;
+            const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
 
             return {
               id: point.id,
@@ -165,46 +314,51 @@ export default function SafetyMapScreen() {
               latitude: point.latitude,
               longitude: point.longitude,
               temperatureC: typeof temp === "number" ? Math.round(temp) : null,
-              weatherLabel: weatherCodeToLabel(weatherCode),
+              weatherLabel: owmCodeToLabel(weatherCode),
+              weatherIcon: owmCodeToIcon(weatherCode),
+              forecastTimeLabel,
             };
           })
         );
 
         if (mounted) {
-          setWeatherMarkers(nextWeather);
+          setWeatherMarkers(
+            nextWeatherResults.map((result, index) => {
+              if (result.status === "fulfilled") {
+                return result.value;
+              }
+
+              const point = barangayWeatherPoints[index];
+              console.error(`Failed to fetch forecast for ${point.barangay}:`, result.reason);
+              return toUnavailableWeather(point);
+            })
+          );
+          hasLoadedWeatherRef.current = true;
         }
       } catch (error) {
-        console.error("Failed to fetch barangay weather:", error);
+        console.error("Failed to fetch barangay forecasts:", error);
         if (mounted) {
-          setWeatherMarkers(
-            barangayWeatherPoints.map((point) => ({
-              id: point.id,
-              barangay: point.barangay,
-              latitude: point.latitude,
-              longitude: point.longitude,
-              temperatureC: null,
-              weatherLabel: "Unavailable",
-            }))
-          );
+          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          hasLoadedWeatherRef.current = true;
         }
       } finally {
-        if (mounted) {
-          setIsLoadingWeather(false);
-        }
+        isFetchingWeatherRef.current = false;
       }
     };
 
-    fetchWeather();
+    fetchWeather({ showLoadingState: !hasLoadedWeatherRef.current });
+
+    if (layerVisibility.weather) {
+      refreshTimer = setInterval(() => {
+        fetchWeather({ showLoadingState: false });
+      }, WEATHER_REFRESH_MS);
+    }
 
     return () => {
       mounted = false;
+      if (refreshTimer) clearInterval(refreshTimer);
     };
-  }, [
-    layerVisibility.weather,
-    weatherMarkers.length,
-    isLoadingWeather,
-    hasAttemptedWeatherFetch,
-  ]);
+  }, [layerVisibility.weather]);
 
   const handleMapPress = useCallback(() => {
     setShowInfoPanel(true);
@@ -264,6 +418,7 @@ export default function SafetyMapScreen() {
             focusTarget={focusTarget}
           />
         )}
+
       </View>
 
       {/* Quick Actions */}
@@ -442,14 +597,29 @@ export default function SafetyMapScreen() {
               ? `Selected Evac: ${selectedMarkerData.data.name}`
               : selectedMarkerData?.type === "weather"
               ? `${selectedMarkerData.data.barangay}: ${selectedMarkerData.data.weatherLabel}${
+                  selectedMarkerData.data.forecastTimeLabel
+                    ? ` at ${selectedMarkerData.data.forecastTimeLabel}`
+                    : ""
+                }${
                   selectedMarkerData.data.temperatureC !== null
-                    ? `, ${selectedMarkerData.data.temperatureC}°C`
+                    ? `, ${selectedMarkerData.data.temperatureC}\u00B0C`
                     : ""
                 }`
               : selectedMarkerData?.type === "user"
               ? "Your current location"
               : "Tap on map to view details"}
           </ThemedText>
+
+          {selectedMarkerData?.type === "weather" &&
+            selectedMarkerData?.data?.weatherIcon && (
+              <View style={styles.weatherPreviewContainer}>
+                <Image
+                  source={selectedMarkerData.data.weatherIcon}
+                  style={styles.weatherPreviewImage}
+                  contentFit="contain"
+                />
+              </View>
+            )}
 
           <View style={styles.infoPanelStats}>
             <View style={styles.statItem}>
@@ -651,6 +821,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     opacity: 0.7,
   },
+  weatherPreviewContainer: {
+    width: "100%",
+    height: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  weatherPreviewImage: {
+    width: 120,
+    height: 120,
+  },
   infoPanelStats: {
     flexDirection: "row",
     gap: 16,
@@ -682,5 +863,4 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
-
 
