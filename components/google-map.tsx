@@ -2,7 +2,7 @@ import { TealColors } from "@/constants/theme";
 import type { EvacuationLocation } from "@/data/evacuation-locations";
 import type { CrimeDataPoint, UserLocation } from "@/types/crime";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import MapView, { Marker, Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { IconSymbol } from "./ui/icon-symbol";
 import { ThemedText } from "./themed-text";
@@ -14,22 +14,25 @@ const INITIAL_REGION = {
   longitudeDelta: 0.15,
 };
 
+type WeatherMarker = {
+  id: string;
+  barangay: string;
+  latitude: number;
+  longitude: number;
+  temperatureC: number | null;
+  weatherLabel: string;
+  weatherIcon?: any;
+  weatherIconUrl?: string | null;
+  forecastTimeLabel?: string | null;
+};
+
 interface GoogleMapProps {
   coordinates: { latitude: number; longitude: number }[];
   borderColor?: string;
   userLocation?: UserLocation | null;
   crimeData?: CrimeDataPoint[];
   evacuationLocations?: EvacuationLocation[];
-  weatherMarkers?: Array<{
-    id: string;
-    barangay: string;
-    latitude: number;
-    longitude: number;
-    temperatureC: number | null;
-    weatherLabel: string;
-    weatherIcon?: any;
-    forecastTimeLabel?: string | null;
-  }>;
+  weatherMarkers?: WeatherMarker[];
   nearestEvacuationId?: string | null;
   isLoadingCrimeData?: boolean;
   onMapReady?: () => void;
@@ -186,9 +189,22 @@ function GoogleMapComponent({
             title={`${weather.barangay} Weather`}
             description={`${weather.weatherLabel}${weather.forecastTimeLabel ? ` at ${weather.forecastTimeLabel}` : ""}${weather.temperatureC !== null ? `, ${weather.temperatureC}\u00B0C` : ""}`}
             onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
-            pinColor={weatherPinColor(weather.weatherLabel)}
-            tracksViewChanges={false}
-          />
+            tracksViewChanges={true}
+          >
+            {weather.weatherIconUrl ? (
+              <Image
+                source={{ uri: weather.weatherIconUrl }}
+                style={styles.weatherMarkerIcon}
+                resizeMode="contain"
+              />
+            ) : (
+              <IconSymbol
+                name="cloud-outline"
+                size={32}
+                color={weatherPinColor(weather.weatherLabel)}
+              />
+            )}
+          </Marker>
         ))}
 
         {crimeData.map((crime, index) => (
@@ -258,6 +274,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#ffffff",
+  },
+  weatherMarkerIcon: {
+    width: 40,
+    height: 40,
   },
 });
 

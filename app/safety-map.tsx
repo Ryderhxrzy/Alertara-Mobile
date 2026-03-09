@@ -10,9 +10,8 @@ import { LocationService } from "@/services/location/location-service";
 import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
-import { Image } from "expo-image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 const EMPTY_CRIME_DATA: never[] = [];
 
@@ -30,7 +29,6 @@ const WeatherIcons = {
   thunder: require("../assets/images/weather-forecast-animation/weather_thunder.gif"),
   thunderstorm: require("../assets/images/weather-forecast-animation/weather_thunderstorm.gif"),
   clear_day: require("../assets/images/weather-forecast-animation/weather_clear_day.gif"),
-  // weather_default.gif is 0 bytes and causes Metro to crash. Using sunny as default.
   default: require("../assets/images/weather-forecast-animation/weather_sunny.gif"),
 };
 
@@ -42,6 +40,7 @@ interface WeatherMarkerData {
   temperatureC: number | null;
   weatherLabel: string;
   weatherIcon: any;
+  weatherIconUrl?: string | null;
   forecastTimeLabel: string | null;
 }
 
@@ -72,27 +71,16 @@ function owmCodeToLabel(code: number | null | undefined): string {
 function owmCodeToIcon(code: number | null | undefined): any {
   if (code === null || code === undefined) return WeatherIcons.default;
 
-  // Thunderstorm
   if (code >= 200 && code <= 232) return WeatherIcons.thunderstorm;
-  
-  // Drizzle / Rain
   if (code >= 300 && code <= 321) return WeatherIcons.rain;
-  if (code >= 500 && code <= 504) return WeatherIcons.rainy; // Light to moderate rain
-  if (code >= 511 && code <= 531) return WeatherIcons.heavy_rain; // Heavy rain or freezing rain
-  
-  // Snow
+  if (code >= 500 && code <= 504) return WeatherIcons.rainy;
+  if (code >= 511 && code <= 531) return WeatherIcons.heavy_rain;
   if (code >= 600 && code <= 622) return WeatherIcons.snow;
-  
-  // Atmosphere (Mist, Smoke, Haze, etc.)
   if (code >= 701 && code <= 781) return WeatherIcons.mist;
-  
-  // Clear
   if (code === 800) return WeatherIcons.sunny;
-  
-  // Clouds
-  if (code === 801 || code === 802) return WeatherIcons.broken_clouds; // Partly cloudy
-  if (code >= 803 && code <= 804) return WeatherIcons.broken_clouds; // More clouds
-  
+  if (code === 801 || code === 802) return WeatherIcons.broken_clouds;
+  if (code >= 803 && code <= 804) return WeatherIcons.broken_clouds;
+
   return WeatherIcons.default;
 }
 
@@ -105,6 +93,7 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     temperatureC: null,
     weatherLabel: "Unavailable",
     weatherIcon: WeatherIcons.default,
+    weatherIconUrl: null,
     forecastTimeLabel: null,
   };
 }
@@ -171,7 +160,7 @@ async function fetchForecastWithRetry(
 
 export default function SafetyMapScreen() {
   const { isDarkMode } = useTheme();
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [layerVisibility, setLayerVisibility] = useState({
     alert: true,
     weather: true,
@@ -209,13 +198,8 @@ export default function SafetyMapScreen() {
     [layerVisibility.weather, weatherMarkers]
   );
 
-  const floodProneText = useMemo(
-    () => floodProneBarangays.join(", "),
-    []
-  );
-
   const quickActionsDynamicStyle = useMemo(
-    () => ({ bottom: showInfoPanel ? 220 : 86 }),
+    () => ({ bottom: showInfoPanel ? 170 : 86 }),
     [showInfoPanel]
   );
 
@@ -242,6 +226,89 @@ export default function SafetyMapScreen() {
     if (!nearest || minDistance === Infinity) return null;
     return { site: nearest, distanceKm: minDistance };
   }, [userLocation]);
+
+  const selectedMarkerMessage = useMemo(() => {
+    if (selectedMarkerData?.type === "evacuation") {
+      return `Selected evacuation center: ${selectedMarkerData.data.name}`;
+    }
+
+    if (selectedMarkerData?.type === "crime") {
+      return "Reported alert near this point. Stay cautious.";
+    }
+
+    if (selectedMarkerData?.type === "weather") {
+      return `${selectedMarkerData.data.barangay} weather snapshot`;
+    }
+
+    if (selectedMarkerData?.type === "user") {
+      return "Your current location is shown on the map.";
+    }
+
+    return "Tap a marker to surface localized area information.";
+  }, [selectedMarkerData]);
+
+  const selectedEvacuationDistanceLabel = useMemo(() => {
+    if (selectedMarkerData?.type !== "evacuation") return null;
+    if (!userLocation) return null;
+    const { latitude, longitude } = selectedMarkerData.data;
+    const distance = calculateDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      latitude,
+      longitude
+    );
+    return formatDistance(distance);
+  }, [selectedMarkerData, userLocation]);
+
+  const selectedCrimeDistanceLabel = useMemo(() => {
+    if (selectedMarkerData?.type !== "crime") return null;
+    if (!userLocation) return null;
+    const { lat, lng } = selectedMarkerData.data;
+    const distance = calculateDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      lat,
+      lng
+    );
+    return formatDistance(distance);
+  }, [selectedMarkerData, userLocation]);
+
+  const selectedCrimeDateLabel = useMemo(() => {
+    if (selectedMarkerData?.type !== "crime") return null;
+    const dateValue = selectedMarkerData.data?.date;
+    if (!dateValue) return null;
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }, [selectedMarkerData]);
+
+  const showWeatherSummary =
+    !selectedMarkerData || selectedMarkerData?.type === "weather";
+
+  const areaWeatherSummary = useMemo(() => {
+    if (selectedMarkerData?.type === "weather") {
+      return selectedMarkerData.data;
+    }
+
+    return activeWeatherMarkers[0] ?? null;
+  }, [selectedMarkerData, activeWeatherMarkers]);
+
+  const weatherTemperatureLabel =
+    typeof areaWeatherSummary?.temperatureC === "number"
+      ? `${areaWeatherSummary.temperatureC}\u00B0C`
+      : "--\u00B0C";
+
+  const weatherDescription =
+    areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
+
+  const weatherDetailLine =
+    areaWeatherSummary?.forecastTimeLabel
+      ? `Forecast slot: ${areaWeatherSummary.forecastTimeLabel}`
+      : "Weather updates every 10 minutes.";
 
   // Fetch user location on mount
   useEffect(() => {
@@ -283,20 +350,21 @@ export default function SafetyMapScreen() {
 
       isFetchingWeatherRef.current = true;
 
-      if (mounted && showLoadingState) {
-        setWeatherMarkers(
-          barangayWeatherPoints.map((point) => ({
-            id: point.id,
-            barangay: point.barangay,
-            latitude: point.latitude,
-            longitude: point.longitude,
-            temperatureC: null,
-            weatherLabel: "Loading...",
-            weatherIcon: WeatherIcons.default,
-            forecastTimeLabel: null,
-          }))
-        );
-      }
+        if (mounted && showLoadingState) {
+          setWeatherMarkers(
+            barangayWeatherPoints.map((point) => ({
+              id: point.id,
+              barangay: point.barangay,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              temperatureC: null,
+              weatherLabel: "Loading...",
+              weatherIcon: WeatherIcons.default,
+              weatherIconUrl: null,
+              forecastTimeLabel: null,
+            }))
+          );
+        }
 
       try {
         const nextWeatherResults = await Promise.allSettled(
@@ -308,6 +376,11 @@ export default function SafetyMapScreen() {
             const weatherCode = nearestSlot?.weather?.[0]?.id;
             const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
 
+            const iconCode = nearestSlot?.weather?.[0]?.icon;
+            const iconUrl = iconCode
+              ? `https://openweathermap.org/img/wn/${iconCode}@4x.png`
+              : null;
+
             return {
               id: point.id,
               barangay: point.barangay,
@@ -316,6 +389,7 @@ export default function SafetyMapScreen() {
               temperatureC: typeof temp === "number" ? Math.round(temp) : null,
               weatherLabel: owmCodeToLabel(weatherCode),
               weatherIcon: owmCodeToIcon(weatherCode),
+              weatherIconUrl: iconUrl,
               forecastTimeLabel,
             };
           })
@@ -578,7 +652,7 @@ export default function SafetyMapScreen() {
         >
           <View style={styles.infoPanelHeader}>
             <View style={styles.infoPanelTitleRow}>
-              <IconSymbol name="location" size={24} color={TealColors.primary} />
+              <IconSymbol name="location" size={20} color={TealColors.primary} />
               <ThemedText style={styles.infoPanelTitle}>
                 Area Information
               </ThemedText>
@@ -586,60 +660,127 @@ export default function SafetyMapScreen() {
             <Pressable onPress={() => setShowInfoPanel(false)}>
               <IconSymbol
                 name="xmark"
-                size={18}
+                size={16}
                 color={isDarkMode ? "#e2e8f0" : "#4a5568"}
               />
             </Pressable>
           </View>
 
           <ThemedText style={styles.infoPanelSubtitle}>
-            {selectedMarkerData?.type === "evacuation"
-              ? `Selected Evac: ${selectedMarkerData.data.name}`
-              : selectedMarkerData?.type === "weather"
-              ? `${selectedMarkerData.data.barangay}: ${selectedMarkerData.data.weatherLabel}${
-                  selectedMarkerData.data.forecastTimeLabel
-                    ? ` at ${selectedMarkerData.data.forecastTimeLabel}`
-                    : ""
-                }${
-                  selectedMarkerData.data.temperatureC !== null
-                    ? `, ${selectedMarkerData.data.temperatureC}\u00B0C`
-                    : ""
-                }`
-              : selectedMarkerData?.type === "user"
-              ? "Your current location"
-              : "Tap on map to view details"}
+            {selectedMarkerMessage}
           </ThemedText>
 
-          {selectedMarkerData?.type === "weather" &&
-            selectedMarkerData?.data?.weatherIcon && (
-              <View style={styles.weatherPreviewContainer}>
+          {selectedMarkerData?.type === "evacuation" && (
+            <View
+              style={[
+                styles.markerDetailCard,
+                {
+                  backgroundColor: isDarkMode ? "#0f172a" : "#e0f2fe",
+                },
+              ]}
+            >
+              <ThemedText style={styles.markerDetailLabel}>
+                Evacuation center
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.markerDetailValue,
+                  { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                ]}
+              >
+                {selectedMarkerData.data.name}
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.markerDetailMeta,
+                  { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                ]}
+              >
+                {selectedMarkerData.data.district}
+                {selectedEvacuationDistanceLabel
+                  ? ` • ${selectedEvacuationDistanceLabel} away`
+                  : ""}
+              </ThemedText>
+            </View>
+          )}
+
+          {selectedMarkerData?.type === "crime" && (
+            <View
+              style={[
+                styles.markerDetailCard,
+                {
+                  backgroundColor: isDarkMode ? "#3b0d0d" : "#fee2e2",
+                },
+              ]}
+            >
+              <ThemedText style={styles.markerDetailLabel}>
+                Incident alert
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.markerDetailValue,
+                  { color: isDarkMode ? "#fee2e2" : "#0f172a" },
+                ]}
+              >
+                {selectedCrimeDateLabel ?? "Recent report"}
+              </ThemedText>
+              <ThemedText style={styles.markerDetailMeta}>
+                {selectedCrimeDistanceLabel
+                  ? `${selectedCrimeDistanceLabel} from you`
+                  : "Tap marker to reposition the map"}
+              </ThemedText>
+            </View>
+          )}
+
+          {showWeatherSummary && (
+            <View style={styles.weatherSummary}>
+              <View style={styles.weatherIconWrap}>
                 <Image
-                  source={selectedMarkerData.data.weatherIcon}
-                  style={styles.weatherPreviewImage}
-                  contentFit="contain"
+                  source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
+                  style={styles.weatherSummaryIcon}
+                  resizeMode="contain"
                 />
               </View>
-            )}
+              <View style={styles.weatherSummaryText}>
+                <ThemedText style={styles.weatherSummaryLocation}>
+                  {areaWeatherSummary?.barangay ?? "Talayan"}
+                </ThemedText>
+                <View style={styles.weatherSummaryRow}>
+                  <ThemedText style={styles.weatherSummaryTemp}>
+                    {weatherTemperatureLabel}
+                  </ThemedText>
+                  <View style={styles.weatherSummaryDot} />
+                  <ThemedText style={styles.weatherSummaryLabel}>
+                    {weatherDescription}
+                  </ThemedText>
+                </View>
+                <ThemedText style={styles.weatherSummaryDetail}>
+                  {weatherDetailLine}
+                </ThemedText>
+              </View>
+            </View>
+          )}
 
-          <View style={styles.infoPanelStats}>
-            <View style={styles.statItem}>
-              <ThemedText style={styles.statLabel}>Nearest Evac</ThemedText>
-              <ThemedText style={styles.statValueSmall}>
-                {nearestEvacuation ? nearestEvacuation.site.name : "--"}
-              </ThemedText>
-            </View>
-            <View style={styles.statItem}>
-              <ThemedText style={styles.statLabel}>Distance</ThemedText>
-              <ThemedText style={styles.statValue}>
-                {nearestEvacuation
-                  ? formatDistance(nearestEvacuation.distanceKm)
-                  : "--"}
-              </ThemedText>
-            </View>
+          <View style={styles.floodHeaderRow}>
+            <ThemedText style={styles.sectionLabel}>
+              Flood-prone barangays
+            </ThemedText>
+            <ThemedText style={styles.sectionDescription}>
+              Scroll for details
+            </ThemedText>
           </View>
-          <ThemedText style={styles.floodNote}>
-            Flood-prone barangays: {floodProneText}
-          </ThemedText>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.floodChipsRow}
+          >
+            {floodProneBarangays.map((barangay) => (
+              <View key={barangay} style={styles.floodChip}>
+                <ThemedText style={styles.floodChipText}>{barangay}</ThemedText>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
     </ThemedView>
@@ -791,76 +932,155 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   infoPanel: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
   },
   infoPanelHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   infoPanelTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
   },
   infoPanelTitle: {
     fontSize: 16,
     fontWeight: "700",
   },
   infoPanelSubtitle: {
-    fontSize: 13,
-    marginBottom: 12,
-    opacity: 0.7,
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 10,
   },
-  weatherPreviewContainer: {
-    width: "100%",
-    height: 120,
+  weatherSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  weatherIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 6,
   },
-  weatherPreviewImage: {
-    width: 120,
-    height: 120,
+  weatherSummaryIcon: {
+    width: 42,
+    height: 42,
   },
-  infoPanelStats: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  statItem: {
+  weatherSummaryText: {
     flex: 1,
-    alignItems: "center",
   },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
+  weatherSummaryLocation: {
+    fontSize: 14,
+    fontWeight: "700",
     marginBottom: 4,
   },
-  statValue: {
-    fontSize: 18,
+  weatherSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  weatherSummaryTemp: {
+    fontSize: 24,
     fontWeight: "700",
     color: TealColors.primary,
   },
-  statValueSmall: {
+  weatherSummaryDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#cbd5f5",
+  },
+  weatherSummaryLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: TealColors.primary,
-    textAlign: "center",
+    color: "#475569",
+    textTransform: "capitalize",
+    marginLeft: 8,
   },
-  floodNote: {
-    marginTop: 10,
+  weatherSummaryDetail: {
     fontSize: 11,
-    lineHeight: 16,
-    opacity: 0.7,
+    color: "#64748b",
+    marginTop: 6,
+  },
+  markerDetailCard: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  markerDetailLabel: {
+    fontSize: 10,
+    letterSpacing: 1,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    color: TealColors.primary,
+    marginBottom: 4,
+  },
+  markerDetailValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  markerDetailMeta: {
+    fontSize: 11,
+    opacity: 0.8,
+  },
+  floodHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  sectionDescription: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  floodChipsRow: {
+    paddingVertical: 6,
+  },
+  floodChip: {
+    backgroundColor: "#fee2e2",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#f87171",
+    marginRight: 8,
+  },
+  floodChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#b91c1c",
   },
 });
-
