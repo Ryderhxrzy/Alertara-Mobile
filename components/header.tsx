@@ -44,20 +44,7 @@ export function Header() {
           <ThemedText style={styles.logoText}>lertara QC</ThemedText>
         </View>
       </View>
-      <View style={styles.iconContainer}>
-        <Pressable
-          style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
-          onPress={() => router.push("/(tabs)/notification")}
-        >
-          <IconSymbol size={24} name="bell" color={ICON_COLOR} />
-        </Pressable>
-        <Pressable
-          style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
-          onPress={() => router.push("/(tabs)/me")}
-        >
-          <IconSymbol size={24} name="person" color={ICON_COLOR} />
-        </Pressable>
-      </View>
+      <View style={styles.iconContainer} />
     </View>
   );
 }
