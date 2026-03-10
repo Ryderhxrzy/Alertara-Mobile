@@ -42,6 +42,7 @@ interface WeatherMarkerData {
   weatherIcon: any;
   weatherIconUrl?: string | null;
   forecastTimeLabel: string | null;
+  weeklyForecast: DailyForecast[];
 }
 
 interface DailyForecast {
@@ -104,7 +105,39 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     weatherIcon: WeatherIcons.default,
     weatherIconUrl: null,
     forecastTimeLabel: null,
+    weeklyForecast: [],
   };
+}
+
+function compileWeeklyForecast(list?: any[]): DailyForecast[] {
+  if (!Array.isArray(list)) return [];
+  const days: Record<string, { item: any; targetHoursDiff: number }> = {};
+  list.forEach((item) => {
+    const date = new Date(item.dt * 1000);
+    const dayKey = date.toISOString().split("T")[0];
+    const targetHour = 12;
+    const diff = Math.abs(date.getHours() - targetHour);
+    const previous = days[dayKey];
+    if (!previous || diff < previous.targetHoursDiff) {
+      days[dayKey] = { item, targetHoursDiff: diff };
+    }
+  });
+
+  return Object.values(days)
+    .slice(0, 7)
+    .map(({ item }) => {
+      const weatherCode = item?.weather?.[0]?.id;
+      return {
+        date: item.dt * 1000,
+        label: new Date(item.dt * 1000).toLocaleDateString(undefined, {
+          weekday: "short",
+        }),
+        high: Math.round(item?.main?.temp_max ?? item?.main?.temp ?? 0),
+        low: Math.round(item?.main?.temp_min ?? item?.main?.temp ?? 0),
+        weatherLabel: owmCodeToLabel(weatherCode),
+        weatherIcon: owmCodeToIcon(weatherCode),
+      } as DailyForecast;
+    });
 }
 
 function pickNearestForecastSlot(list: any[]): any | null {
@@ -426,8 +459,9 @@ export default function SafetyMapScreen() {
         const nextWeatherResults = await Promise.allSettled(
           barangayWeatherPoints.map(async (point) => {
             const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${point.latitude}&lon=${point.longitude}&units=metric&appid=${OWM_API_KEY}`;
-            const data = await fetchForecastWithRetry(url, point.barangay);
-            const nearestSlot = pickNearestForecastSlot(data?.list);
+        const data = await fetchForecastWithRetry(url, point.barangay);
+        const nearestSlot = pickNearestForecastSlot(data?.list);
+        const weeklyData = compileWeeklyForecast(data?.list);
             const temp = nearestSlot?.main?.temp;
             const weatherCode = nearestSlot?.weather?.[0]?.id;
             const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
@@ -447,13 +481,13 @@ export default function SafetyMapScreen() {
               weatherIcon: owmCodeToIcon(weatherCode),
               weatherIconUrl: iconUrl,
               forecastTimeLabel,
+              weeklyForecast: weeklyData,
             };
           })
         );
 
         if (mounted) {
-          setWeatherMarkers(
-            nextWeatherResults.map((result, index) => {
+            const markers = nextWeatherResults.map((result, index) => {
               if (result.status === "fulfilled") {
                 return result.value;
               }
@@ -461,9 +495,12 @@ export default function SafetyMapScreen() {
               const point = barangayWeatherPoints[index];
               console.error(`Failed to fetch forecast for ${point.barangay}:`, result.reason);
               return toUnavailableWeather(point);
-            })
-          );
-          hasLoadedWeatherRef.current = true;
+            });
+            setWeatherMarkers(markers);
+            const fallbackWeekly =
+              markers.find((marker) => marker.weeklyForecast.length > 0)?.weeklyForecast ?? [];
+            setWeeklyForecast(fallbackWeekly);
+            hasLoadedWeatherRef.current = true;
         }
       } catch (error) {
         console.error("Failed to fetch barangay forecasts:", error);
