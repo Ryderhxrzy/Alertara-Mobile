@@ -1,15 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
-  DARK_BACKGROUND,
-  DARK_BORDER,
-  DARK_CARD_BG,
-  DARK_ICON,
-  LIGHT_BACKGROUND,
-  LIGHT_BORDER,
-  LIGHT_CARD_BG,
-  LIGHT_ICON,
-  TealColors,
+    DARK_BACKGROUND,
+    DARK_BORDER,
+    DARK_CARD_BG,
+    DARK_ICON,
+    LIGHT_BACKGROUND,
+    LIGHT_BORDER,
+    LIGHT_CARD_BG,
+    LIGHT_ICON,
+    TealColors,
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { Image } from "expo-image";
@@ -34,7 +34,7 @@ export function Header() {
     >
       <View style={styles.leftSection}>
         <Pressable style={styles.menuButton}>
-          <IconSymbol size={24} name={'menu' as any} color={ICON_COLOR} />
+          <IconSymbol size={24} name={"menu" as any} color={ICON_COLOR} />
         </Pressable>
         <View style={styles.logoContainer}>
           <Image
