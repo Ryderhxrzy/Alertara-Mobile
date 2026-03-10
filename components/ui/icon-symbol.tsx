@@ -48,10 +48,22 @@ const MAPPING = {
   clock: "time",
   "info.circle": "information-circle",
   checkmark: "checkmark-done",
+  "checkmark.circle": "checkmark-circle-outline",
   exclamationmark: "alert-circle",
+  "exclamationmark.triangle": "warning-outline",
   xmark: "close-circle",
   building: "business",
   phone: "call",
+  pencil: "pencil-outline",
+  mail: "mail-outline",
+  "person.2": "people-outline",
+  message: "chatbubble-outline",
+  globe: "globe-outline",
+  lock: "lock-closed-outline",
+  "doc.text": "document-text-outline",
+  "questionmark.circle": "help-circle-outline",
+  "arrow.backward": "arrow-back",
+  "list.bullet": "list-outline",
 } as unknown as IconMapping;
 
 /**
