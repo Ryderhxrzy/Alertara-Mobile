@@ -124,6 +124,7 @@ function compileWeeklyForecast(list?: any[]): DailyForecast[] {
   });
 
   return Object.values(days)
+    .sort((a, b) => a.item.dt - b.item.dt)
     .slice(0, 7)
     .map(({ item }) => {
       const weatherCode = item?.weather?.[0]?.id;
@@ -270,52 +271,6 @@ export default function SafetyMapScreen() {
     return { site: nearest, distanceKm: minDistance };
   }, [userLocation]);
 
-  useEffect(() => {
-    if (!activeWeatherMarkers[0] || !OWM_API_KEY) {
-      setWeeklyForecast([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    const marker = activeWeatherMarkers[0];
-
-    const fetchWeekly = async () => {
-      const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${marker.latitude}&lon=${marker.longitude}&exclude=current,minutely,hourly,alerts&units=metric&appid=${OWM_API_KEY}`;
-      try {
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-          console.warn("Weekly forecast request rejected", response.status);
-          setWeeklyForecast([]);
-          return;
-        }
-        const data = await response.json();
-        const entries = (data.daily ?? [])
-          .slice(0, 7)
-          .map((day: any) => {
-            const weatherCode = day.weather?.[0]?.id;
-            return {
-              date: day.dt * 1000,
-              label: new Date(day.dt * 1000).toLocaleDateString(undefined, {
-                weekday: "short",
-              }),
-              high: Math.round(day.temp?.max ?? 0),
-              low: Math.round(day.temp?.min ?? 0),
-              weatherLabel: owmCodeToLabel(weatherCode),
-              weatherIcon: owmCodeToIcon(weatherCode),
-            } as DailyForecast;
-          });
-        setWeeklyForecast(entries);
-      } catch (error) {
-        if ((error as any)?.name === "AbortError") return;
-        console.warn("Weekly forecast fetch failed", error);
-        setWeeklyForecast([]);
-      }
-    };
-
-    fetchWeekly();
-    return () => controller.abort();
-  }, [activeWeatherMarkers]);
-
   const selectedMarkerMessage = useMemo(() => {
     if (selectedMarkerData?.type === "evacuation") {
       return `Selected evacuation center: ${selectedMarkerData.data.name}`;
@@ -335,6 +290,24 @@ export default function SafetyMapScreen() {
 
     return "Tap a marker to surface localized area information.";
   }, [selectedMarkerData]);
+
+  useEffect(() => {
+    if (selectedMarkerData?.type === "weather") {
+      const weekly =
+        selectedMarkerData.data?.weeklyForecast ??
+        selectedMarkerData?.weeklyForecast ??
+        [];
+      if (weekly.length > 0) {
+        setWeeklyForecast(weekly);
+        return;
+      }
+    }
+
+    const fallback =
+      activeWeatherMarkers.find((marker) => marker.weeklyForecast.length > 0)
+        ?.weeklyForecast ?? [];
+    setWeeklyForecast(fallback);
+  }, [selectedMarkerData, activeWeatherMarkers]);
 
   const selectedEvacuationDistanceLabel = useMemo(() => {
     if (selectedMarkerData?.type !== "evacuation") return null;
