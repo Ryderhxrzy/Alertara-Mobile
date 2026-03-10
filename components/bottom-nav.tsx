@@ -18,13 +18,17 @@ export function BottomNav({
 }: BottomTabBarProps) {
   const callIndex = state.routes.findIndex((r) => r.name === "call");
   const adjacentSpacing = 40; // spacing reserved on either side of call button
+  const unreadNotifications = 3;
 
   return (
     <View style={styles.container}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
-        const label = options.title || route.name;
+        const label =
+          route.name === "notification"
+            ? "Notification"
+            : options.title || route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -92,11 +96,18 @@ export function BottomNav({
             style={[styles.tab, extraStyle]}
           >
             <View style={styles.tabContent}>
-              <IconSymbol
-                size={24}
-                name={iconName as any}
-                color={isFocused ? TealColors.primary : "#888"}
-              />
+              <View style={styles.iconWrapper}>
+                <IconSymbol
+                  size={24}
+                  name={iconName as any}
+                  color={isFocused ? TealColors.primary : "#888"}
+                />
+                {route.name === "notification" && unreadNotifications > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadNotifications}</Text>
+                  </View>
+                )}
+              </View>
               <Text
                 style={[
                   styles.label,
@@ -136,6 +147,9 @@ const styles = StyleSheet.create({
     // explicitly stack icon above text
     flexDirection: "column",
   },
+  iconWrapper: {
+    position: "relative",
+  },
   label: {
     fontSize: 12,
     marginTop: 2,
@@ -149,6 +163,23 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     zIndex: 10,
     marginHorizontal: 20,
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -10,
+    minWidth: 18,
+    paddingHorizontal: 4,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#ff3b30",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
   },
   // styling for the legacy teal button is no longer used; handled inside EmergencyCallButton
 });

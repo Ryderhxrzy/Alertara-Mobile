@@ -2,45 +2,176 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useTheme } from '@/context/theme-context';
-import { Animated, Easing, Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, SafeAreaView, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 
-const alerts = [
-  {
-    id: 'earthquake',
-    category: 'EARTHQUAKE',
-    title: '[MOCK] CRITICAL EARTHQUAKE ALERT',
-    type: 'Emergency Bulletin',
-    alertType: 'Type: Earthquake Emergency',
-    severity: 'HIGH',
-    timestamp: '2026-02-25 03:47:51',
-    description:
-      'Critical earthquake activity detected. This is an emergency safety broadcast to all citizens.',
-    actions: [
-      'DROP, COVER, and HOLD.',
-      'Move away from glass, shelves, and power lines.',
-      'Evacuate damaged structures after shaking stops.',
-      'Wait for LGU and rescue advisories.',
-    ],
-    source: 'phivolcs',
-  },
-  {
-    id: 'weather',
-    category: 'WEATHER',
-    title: '[MOCK] CRITICAL WEATHER ALERT',
-    type: 'Emergency Bulletin',
-    alertType: 'Type: Severe Weather Emergency',
-    severity: 'HIGH',
-    timestamp: '2026-02-25 03:43:02',
-    description: 'Heavy rainfall and gale-force winds are expected within the next hour.',
-    actions: [
-      'Move away from windows and electrical panels.',
-      'Secure loose items outside and park vehicles indoors.',
-      'Monitor official advisories for flash flood notices.',
-    ],
-    source: 'dost-ph',
-  },
-];
+type NotificationItem = {
+  id: string;
+  icon: string;
+  category: string;
+  title: string;
+  type: string;
+  alertType: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  timestamp: string;
+  description: string;
+  actions: string[];
+  source: string;
+};
+
+const notificationsByCategory: Record<string, NotificationItem[]> = {
+  General: [
+    {
+      id: 'general-1',
+      category: 'General',
+      icon: 'info.circle',
+      title: 'LGU Community Support Briefing',
+      type: 'Advisory Bulletin',
+      alertType: 'Type: Information Update',
+      severity: 'LOW',
+      timestamp: '2026-03-09 08:15:00',
+      description:
+        'Barangay and city support hotlines remain open; refer neighbors to the community safety center at City Hall.',
+      actions: [
+        'Share the hotline number in your block chat.',
+        'Tag incoming visitors that they must check in at the safety desk.',
+      ],
+      source: 'City LGU',
+    },
+    {
+      id: 'general-2',
+      category: 'General',
+      icon: 'info.circle',
+      title: 'Barangay Evacuation Route Signage',
+      type: 'Maintenance Notice',
+      alertType: 'Type: Infrastructure Update',
+      severity: 'MEDIUM',
+      timestamp: '2026-03-08 17:40:00',
+      description:
+        'New evacuation signposts are being installed along national roads; expect brief lane adjustments this weekend.',
+      actions: ['Plan slight detours if you travel through Zone 3', 'Report missing signage via the LGU portal'],
+      source: 'Public Works',
+    },
+  ],
+  Alert: [
+    {
+      id: 'earthquake',
+      category: 'Alert',
+      icon: 'flame',
+      title: '[MOCK] CRITICAL EARTHQUAKE ALERT',
+      type: 'Emergency Bulletin',
+      alertType: 'Type: Earthquake Emergency',
+      severity: 'HIGH',
+      timestamp: '2026-02-25 03:47:51',
+      description:
+        'Critical earthquake activity detected. This is an emergency safety broadcast to all citizens.',
+      actions: [
+        'DROP, COVER, and HOLD.',
+        'Move away from glass, shelves, and power lines.',
+        'Evacuate damaged structures after shaking stops.',
+        'Wait for LGU and rescue advisories.',
+      ],
+      source: 'phivolcs',
+    },
+    {
+      id: 'weather',
+      category: 'Alert',
+      icon: 'weather-partly-snowy-rainy',
+      title: '[MOCK] CRITICAL WEATHER ALERT',
+      type: 'Emergency Bulletin',
+      alertType: 'Type: Severe Weather Emergency',
+      severity: 'HIGH',
+      timestamp: '2026-02-25 03:43:02',
+      description: 'Heavy rainfall and gale-force winds are expected within the next hour.',
+      actions: [
+        'Move away from windows and electrical panels.',
+        'Secure loose items outside and park vehicles indoors.',
+        'Monitor official advisories for flash flood notices.',
+      ],
+      source: 'dost-ph',
+    },
+    {
+      id: 'fire-alert',
+      category: 'Alert',
+      icon: 'flame',
+      title: 'Building Fire Watch',
+      type: 'Emergency Bulletin',
+      alertType: 'Type: Fire Alert',
+      severity: 'HIGH',
+      timestamp: '2026-03-09 01:20:00',
+      description:
+        'Fire crews are responding to a blaze near the wet market; citizens are asked to avoid smoke-affected areas.',
+      actions: ['Stay indoors with windows closed', 'Do not park near narrow alleys to allow firefighting access'],
+      source: 'BFP',
+    },
+    {
+      id: 'crash-alert',
+      category: 'Alert',
+      icon: 'car-sport',
+      title: 'Bridge Collision Incident',
+      type: 'Immediate Alert',
+      alertType: 'Type: Transport Accident',
+      severity: 'MEDIUM',
+      timestamp: '2026-03-09 11:30:00',
+      description:
+        'A delivery truck collided with guardrails on Osmena Bridge; expect traffic rerouting for next two hours.',
+      actions: [
+        'Use alternative northbound routes via Mabini Avenue',
+        'Follow traffic assist officers pulling aside for emergency vehicles',
+      ],
+      source: 'Traffic Management',
+    },
+  ],
+  Announcement: [
+    {
+      id: 'announcement-1',
+      category: 'Announcement',
+      icon: 'megaphone',
+      title: 'City-wide Resilience Drill',
+      type: 'Public Announcement',
+      alertType: 'Type: Preparedness Activity',
+      severity: 'MEDIUM',
+      timestamp: '2026-03-07 11:00:00',
+      description: 'LGU invites communities to join the monthly resilience drill this Sunday in Barangay 12.',
+      actions: ['Bring your mask and ID', 'Follow the marshals during partial evacuations'],
+      source: 'Office of Civil Defense',
+    },
+  ],
+  Reminder: [
+    {
+      id: 'reminder-1',
+      category: 'Reminder',
+      icon: 'clock',
+      title: 'Update Emergency Contact Cards',
+      type: 'Community Reminder',
+      alertType: 'Type: Citizen Task',
+      severity: 'LOW',
+      timestamp: '2026-03-06 09:00:00',
+      description: 'Submit your updated contact card at the barangay hall before the 15th of the month.',
+      actions: ['Bring a copy of proof of residence', 'Ask for a receipt and keep it safe'],
+      source: 'Barangay 12 Secretariat',
+    },
+  ],
+  'Emergency Broadcast': [
+    {
+      id: 'emergency-1',
+      category: 'Emergency Broadcast',
+      icon: 'shield',
+      title: 'Critical Flood Alert Level 2',
+      type: 'Emergency Broadcast',
+      alertType: 'Type: Flood Warning',
+      severity: 'HIGH',
+      timestamp: '2026-03-05 21:10:00',
+      description: 'Rivers are rising rapidly due to continuous rainfall; relocation sites are being activated.',
+      actions: [
+        'Move belongings to higher ground.',
+        'Head to the nearest evacuation center if prompted.',
+        'Turn off gas and electricity before leaving.',
+      ],
+      source: 'NDRRMC',
+    },
+  ],
+};
 
 const severityColors: Record<string, string> = {
   HIGH: '#df4338',
@@ -48,7 +179,13 @@ const severityColors: Record<string, string> = {
   LOW: '#2f9d63',
 };
 
-const categoryTabs = ['General', 'Alert', 'Announcement', 'Reminder', 'Emergency Broadcast'];
+const categoryTabs = [
+  { key: 'General', icon: 'info.circle' },
+  { key: 'Alert', icon: 'exclamationmark' },
+  { key: 'Announcement', icon: 'megaphone' },
+  { key: 'Reminder', icon: 'clock' },
+  { key: 'Emergency Broadcast', icon: 'shield' },
+];
 const timeFilters = ['Now', 'Yesterday', 'A Week Ago', 'A Month Ago', 'A Year Ago'];
 
 export default function NotificationScreen() {
@@ -57,16 +194,24 @@ export default function NotificationScreen() {
   const cardBackground = isDarkMode ? '#18252a' : '#ffffff';
   const textColor = isDarkMode ? Colors.dark.text : Colors.light.text;
   const highlightColor = isDarkMode ? Colors.dark.tint : Colors.light.tint;
-  const [selectedCategory, setSelectedCategory] = useState(categoryTabs[0]);
+  const [selectedCategory, setSelectedCategory] = useState(categoryTabs[0].key);
   const [selectedTimeFilter, setSelectedTimeFilter] = useState(timeFilters[0]);
   const [filterVisible, setFilterVisible] = useState(false);
   const [menuMounted, setMenuMounted] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchMounted, setSearchMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchAnim = useRef(new Animated.Value(0)).current;
   const translateX = slideAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [260, 0],
   });
   const overlayTextColor = Colors.light.text;
+  const searchTranslateY = searchAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-60, 0],
+  });
 
   useEffect(() => {
     if (filterVisible) {
@@ -87,6 +232,27 @@ export default function NotificationScreen() {
     }
   }, [filterVisible, slideAnim]);
 
+  useEffect(() => {
+    if (searchVisible) {
+      setSearchMounted(true);
+      Animated.timing(searchAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(searchAnim, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }).start(({ finished }) => finished && setSearchMounted(false));
+    }
+  }, [searchVisible, searchAnim]);
+
+  const currentNotifications = notificationsByCategory[selectedCategory] ?? [];
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBackground }]}>
       <ScrollView
@@ -101,53 +267,113 @@ export default function NotificationScreen() {
             <ThemedText type="title" style={[styles.headerTitle, { color: textColor }]}>
               Notifications
             </ThemedText>
-            <Pressable
-              style={({ pressed }) => [
-                styles.filterButton,
+            <View style={styles.headerActions}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  {
+                    backgroundColor: pressed
+                      ? '#d9e5e1'
+                      : isDarkMode
+                        ? '#1f2d31'
+                        : '#ffffff',
+                  },
+                ]}
+                onPress={() => {
+                  setFilterVisible(false);
+                  setSearchVisible(prev => !prev);
+                }}
+              >
+                <IconSymbol name="search" size={20} color={highlightColor} />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  styles.iconSpacing,
+                  {
+                    backgroundColor: pressed
+                      ? '#d9e5e1'
+                      : isDarkMode
+                        ? '#1f2d31'
+                        : '#ffffff',
+                  },
+                ]}
+                onPress={() => {
+                  setSearchVisible(false);
+                  setFilterVisible(prev => !prev);
+                }}
+              >
+                <IconSymbol name="filter" size={20} color={highlightColor} />
+              </Pressable>
+            </View>
+          </View>
+
+          {searchMounted && (
+            <Animated.View
+              style={[
+                styles.searchPanel,
                 {
-                  borderColor: isDarkMode ? '#24303a' : '#dfe3e8',
-                  backgroundColor: pressed
-                    ? '#d9e5e1'
-                    : isDarkMode
-                      ? '#1f2d31'
-                      : '#ffffff',
+                  transform: [{ translateY: searchTranslateY }],
+                  opacity: searchAnim,
                 },
               ]}
-              onPress={() => setFilterVisible(prev => !prev)}
             >
-              <IconSymbol name="filter" size={22} color={highlightColor} />
-            </Pressable>
-          </View>
+              <View style={styles.searchInput}>
+                <IconSymbol name="search" size={16} color="#6b6b6b" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search notifications"
+                  placeholderTextColor="#7a7a7a"
+                  style={styles.searchText}
+                />
+                <Pressable
+                  style={styles.searchClose}
+                  onPress={() => setSearchVisible(false)}
+                >
+                  <IconSymbol name="xmark" size={14} color="#6b6b6b" />
+                </Pressable>
+              </View>
+            </Animated.View>
+          )}
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterTabs}
           >
-            {categoryTabs.map(option => (
+            {categoryTabs.map(category => (
               <Pressable
-                key={option}
+                key={category.key}
                 style={[
                   styles.filterTab,
                   {
                     borderColor: isDarkMode ? '#2f3b42' : '#c1c5cc',
-                    backgroundColor: selectedCategory === option ? `${highlightColor}20` : cardBackground,
+                    backgroundColor:
+                      selectedCategory === category.key ? `${highlightColor}20` : cardBackground,
                   },
-                  selectedCategory === option && {
+                  selectedCategory === category.key && {
                     borderColor: highlightColor,
                   },
                 ]}
-                onPress={() => setSelectedCategory(option)}
+                onPress={() => setSelectedCategory(category.key)}
               >
-                <ThemedText
-                  style={[
-                    styles.filterTabText,
-                    { color: textColor },
-                    selectedCategory === option && { fontWeight: '700' },
-                  ]}
-                >
-                  {option}
-                </ThemedText>
+                <View style={styles.filterTabContent}>
+                  <IconSymbol
+                    name={category.icon}
+                    size={12}
+                    color={selectedCategory === category.key ? highlightColor : '#6b6b6b'}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.filterTabText,
+                      { color: textColor },
+                      selectedCategory === category.key && { fontWeight: '700' },
+                    ]}
+                  >
+                    {category.key}
+                  </ThemedText>
+                </View>
               </Pressable>
             ))}
           </ScrollView>
@@ -197,13 +423,13 @@ export default function NotificationScreen() {
           )}
         </View>
 
-        {alerts.map(alert => {
+        {currentNotifications.map(alert => {
           const severityColor = severityColors[alert.severity] ?? '#999';
           return (
             <View key={alert.id} style={[styles.card, { backgroundColor: cardBackground }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.categoryRow}>
-                  <IconSymbol name="flame" size={18} color={severityColor} />
+                  <IconSymbol name={alert.icon} size={18} color={severityColor} />
                   <ThemedText style={[styles.categoryText, { color: textColor }]}>
                     {alert.category} · {alert.type}
                   </ThemedText>
@@ -285,7 +511,11 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
   },
-  filterButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
     width: 42,
     height: 42,
     borderRadius: 999,
@@ -293,6 +523,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#dfe3e8',
+  },
+  iconSpacing: {
+    marginLeft: 10,
   },
   filterTabs: {
     flexDirection: 'row',
@@ -308,6 +541,45 @@ const styles = StyleSheet.create({
   },
   filterTabText: {
     fontSize: 13,
+  },
+  filterTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  searchPanel: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    right: 16,
+    borderRadius: 30,
+    padding: 10,
+    backgroundColor: '#ffffff',
+    zIndex: 30,
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1a1a1a',
+    padding: 0,
+  },
+  searchClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: '#ececec',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterMenu: {
     position: 'absolute',
