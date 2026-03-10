@@ -68,7 +68,7 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
-            name="crime-mapping"
+            name="safety-map"
             options={{
               presentation: "card",
               headerShown: false,
