@@ -41,6 +41,7 @@ const MAPPING = {
   map: "map-outline",
   flame: "flame",
   shield: "shield",
+  filter: "filter",
   clock: "time",
   "info.circle": "information-circle",
   checkmark: "checkmark-done",
