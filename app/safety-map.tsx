@@ -250,7 +250,11 @@ export default function SafetyMapScreen() {
       const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${marker.latitude}&lon=${marker.longitude}&exclude=current,minutely,hourly,alerts&units=metric&appid=${OWM_API_KEY}`;
       try {
         const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) throw new Error("Failed to fetch weekly forecast");
+        if (!response.ok) {
+          console.warn("Weekly forecast request rejected", response.status);
+          setWeeklyForecast([]);
+          return;
+        }
         const data = await response.json();
         const entries = (data.daily ?? [])
           .slice(0, 7)
@@ -269,10 +273,9 @@ export default function SafetyMapScreen() {
           });
         setWeeklyForecast(entries);
       } catch (error) {
-        if ((error as any)?.name !== "AbortError") {
-          console.error("Failed to fetch weekly forecast:", error);
-          setWeeklyForecast([]);
-        }
+        if ((error as any)?.name === "AbortError") return;
+        console.warn("Weekly forecast fetch failed", error);
+        setWeeklyForecast([]);
       }
     };
 
