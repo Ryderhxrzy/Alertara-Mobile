@@ -230,17 +230,6 @@ export default function MeScreen() {
               { label: "Español", value: "es" },
               { label: "Français", value: "fr" },
               { label: "Tagalog", value: "tl" },
-              { label: "Bisaya/Cebuano", value: "ceb" },
-              { label: "Hiligaynon/Ilonggo", value: "hil" },
-              { label: "Waray-Waray", value: "war" },
-              { label: "Kapampangan", value: "pam" },
-              { label: "Bicolano", value: "bcl" },
-              { label: "Ilocano", value: "ilo" },
-              { label: "Pangasinan", value: "pag" },
-              { label: "Chavacano", value: "cbk" },
-              { label: "Kinaray-a", value: "krj" },
-              { label: "Ibanag", value: "iba" },
-              { label: "Sama-Bajaw", value: "msm" },
             ]}
             onSelect={(value: string) => setLanguage(value as LanguageOption)}
           />
