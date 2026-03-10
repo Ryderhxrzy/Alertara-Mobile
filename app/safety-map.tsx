@@ -5,7 +5,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { barangayWeatherPoints } from "@/data/barangay-weather-points";
-import { evacuationLocations, type EvacuationLocation, floodProneBarangays } from "@/data/evacuation-locations";
+import { evacuationLocations, type EvacuationLocation } from "@/data/evacuation-locations";
 import { LocationService } from "@/services/location/location-service";
 import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
@@ -42,6 +42,15 @@ interface WeatherMarkerData {
   weatherIcon: any;
   weatherIconUrl?: string | null;
   forecastTimeLabel: string | null;
+}
+
+interface DailyForecast {
+  date: number;
+  label: string;
+  high: number;
+  low: number;
+  weatherLabel: string;
+  weatherIcon: any;
 }
 
 const WEATHER_REFRESH_MS = 10 * 60 * 1000;
@@ -177,6 +186,7 @@ export default function SafetyMapScreen() {
   } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const [weatherMarkers, setWeatherMarkers] = useState<WeatherMarkerData[]>([]);
+  const [weeklyForecast, setWeeklyForecast] = useState<DailyForecast[]>([]);
   const isFetchingWeatherRef = useRef(false);
   const hasLoadedWeatherRef = useRef(false);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
@@ -226,6 +236,49 @@ export default function SafetyMapScreen() {
     if (!nearest || minDistance === Infinity) return null;
     return { site: nearest, distanceKm: minDistance };
   }, [userLocation]);
+
+  useEffect(() => {
+    if (!activeWeatherMarkers[0] || !OWM_API_KEY) {
+      setWeeklyForecast([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const marker = activeWeatherMarkers[0];
+
+    const fetchWeekly = async () => {
+      const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${marker.latitude}&lon=${marker.longitude}&exclude=current,minutely,hourly,alerts&units=metric&appid=${OWM_API_KEY}`;
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error("Failed to fetch weekly forecast");
+        const data = await response.json();
+        const entries = (data.daily ?? [])
+          .slice(0, 7)
+          .map((day: any) => {
+            const weatherCode = day.weather?.[0]?.id;
+            return {
+              date: day.dt * 1000,
+              label: new Date(day.dt * 1000).toLocaleDateString(undefined, {
+                weekday: "short",
+              }),
+              high: Math.round(day.temp?.max ?? 0),
+              low: Math.round(day.temp?.min ?? 0),
+              weatherLabel: owmCodeToLabel(weatherCode),
+              weatherIcon: owmCodeToIcon(weatherCode),
+            } as DailyForecast;
+          });
+        setWeeklyForecast(entries);
+      } catch (error) {
+        if ((error as any)?.name !== "AbortError") {
+          console.error("Failed to fetch weekly forecast:", error);
+          setWeeklyForecast([]);
+        }
+      }
+    };
+
+    fetchWeekly();
+    return () => controller.abort();
+  }, [activeWeatherMarkers]);
 
   const selectedMarkerMessage = useMemo(() => {
     if (selectedMarkerData?.type === "evacuation") {
@@ -763,23 +816,62 @@ export default function SafetyMapScreen() {
 
           <View style={styles.floodHeaderRow}>
             <ThemedText style={styles.sectionLabel}>
-              Flood-prone barangays
+              7-day weather outlook
             </ThemedText>
             <ThemedText style={styles.sectionDescription}>
-              Scroll for details
+              Predictions based on the current forecast
             </ThemedText>
           </View>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.floodChipsRow}
+            contentContainerStyle={styles.forecastRow}
           >
-            {floodProneBarangays.map((barangay) => (
-              <View key={barangay} style={styles.floodChip}>
-                <ThemedText style={styles.floodChipText}>{barangay}</ThemedText>
+            {weeklyForecast.length > 0 ? (
+              weeklyForecast.map((day) => (
+                <View
+                  key={day.date}
+                  style={[
+                    styles.forecastCard,
+                    {
+                      backgroundColor: isDarkMode ? "#1e293b" : "#fff",
+                      borderColor: isDarkMode ? "#334155" : "#e0e7ff",
+                    },
+                  ]}
+                >
+                  <Image
+                    source={day.weatherIcon}
+                    style={styles.forecastIcon}
+                    resizeMode="contain"
+                  />
+                  <ThemedText style={styles.forecastDay}>{day.label}</ThemedText>
+                  <ThemedText style={styles.forecastLabel}>
+                    {day.weatherLabel}
+                  </ThemedText>
+                  <View style={styles.forecastTempRow}>
+                    <ThemedText style={styles.forecastTempHigh}>
+                      {day.high}°C
+                    </ThemedText>
+                    <ThemedText style={styles.forecastTempLow}>
+                      {day.low}°C
+                    </ThemedText>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.forecastCard,
+                  {
+                    backgroundColor: isDarkMode ? "#1e293b" : "#fff",
+                    borderColor: isDarkMode ? "#334155" : "#e0e7ff",
+                  },
+                ]}
+              >
+                <ThemedText style={styles.forecastDay}>Forecast unavailable</ThemedText>
               </View>
-            ))}
+            )}
           </ScrollView>
         </View>
       )}
@@ -1066,21 +1158,47 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#94a3b8",
   },
-  floodChipsRow: {
+  forecastRow: {
     paddingVertical: 6,
   },
-  floodChip: {
-    backgroundColor: "#fee2e2",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+  forecastCard: {
+    width: 110,
     borderWidth: 1,
-    borderColor: "#f87171",
-    marginRight: 8,
+    borderRadius: 14,
+    padding: 12,
+    marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  floodChipText: {
+  forecastIcon: {
+    width: 46,
+    height: 46,
+    marginBottom: 6,
+  },
+  forecastDay: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#b91c1c",
+  },
+  forecastLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  forecastTempRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  forecastTempHigh: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: TealColors.primary,
+    marginRight: 6,
+  },
+  forecastTempLow: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
   },
 });
