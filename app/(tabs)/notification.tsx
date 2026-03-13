@@ -2,8 +2,12 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useTheme } from '@/context/theme-context';
-import { Animated, Easing, Pressable, SafeAreaView, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Easing, LayoutAnimation, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, TextInput, UIManager, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type NotificationItem = {
   id: string;
@@ -187,6 +191,119 @@ const categoryTabs = [
   { key: 'Emergency Broadcast', icon: 'shield' },
 ];
 const timeFilters = ['Now', 'Yesterday', 'A Week Ago', 'A Month Ago', 'A Year Ago'];
+
+const NotificationCard = ({ alert, cardBackground, textColor }: { alert: NotificationItem; cardBackground: string; textColor: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const expandAnim = useRef(new Animated.Value(0)).current;
+  const severityColor = severityColors[alert.severity] ?? '#999';
+
+  const toggleExpand = () => {
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    Animated.timing(expandAnim, {
+      toValue: nextState ? 1 : 0,
+      duration: 300,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const heightStyle = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, contentHeight],
+  });
+
+  const opacityStyle = expandAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  return (
+    <Pressable style={[styles.card, { backgroundColor: cardBackground }]} onPress={toggleExpand}>
+      <View style={styles.cardHeader}>
+        <View style={styles.categoryRow}>
+          <IconSymbol name={alert.icon} size={18} color={severityColor} />
+          <ThemedText style={[styles.categoryText, { color: textColor }]}>
+            {alert.category} · {alert.type}
+          </ThemedText>
+        </View>
+        <View
+          style={[
+            styles.severityPill,
+            { borderColor: severityColor, backgroundColor: `${severityColor}15` },
+          ]}
+        >
+          <ThemedText style={[styles.severityText, { color: severityColor }]}>
+            {alert.severity}
+          </ThemedText>
+        </View>
+      </View>
+
+      <ThemedText type="subtitle" style={[styles.titleText, { color: textColor }]}>
+        {alert.title}
+      </ThemedText>
+
+      <ThemedText style={[styles.typeLabel, { color: textColor }]}>{alert.alertType}</ThemedText>
+
+      <ThemedText style={[styles.description, { color: textColor }]} numberOfLines={isExpanded ? undefined : 2}>
+        {alert.description}
+      </ThemedText>
+
+      <View style={{ position: 'absolute', opacity: 0, width: '100%', zIndex: -1 }} pointerEvents="none">
+        <View
+          onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}
+          style={styles.expandedContent}
+        >
+          <View style={styles.actionsContainer}>
+            <ThemedText style={[styles.actionsLabel, { color: textColor }]}>Action steps:</ThemedText>
+            {alert.actions.map(action => (
+              <View key={action} style={styles.actionRow}>
+                <View style={[styles.bullet, { backgroundColor: severityColor }]} />
+                <ThemedText style={[styles.actionText, { color: textColor }]}>{action}</ThemedText>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <Animated.View style={{ height: contentHeight > 0 ? heightStyle : 0, opacity: opacityStyle, overflow: 'hidden' }}>
+        <View style={styles.expandedContent}>
+          <View style={styles.actionsContainer}>
+            <ThemedText style={[styles.actionsLabel, { color: textColor }]}>Action steps:</ThemedText>
+            {alert.actions.map(action => (
+              <View key={action} style={styles.actionRow}>
+                <View style={[styles.bullet, { backgroundColor: severityColor }]} />
+                <ThemedText style={[styles.actionText, { color: textColor }]}>{action}</ThemedText>
+              </View>
+            ))}
+          </View>
+        </View>
+      </Animated.View>
+
+      <View style={[styles.footerRow, { marginTop: 12 }]}>
+        <ThemedText style={[styles.timestamp, { color: textColor }]}>
+          Timestamp: {alert.timestamp}
+        </ThemedText>
+        <ThemedText style={[styles.source, { color: textColor }]}>
+          Source: {alert.source}
+        </ThemedText>
+      </View>
+
+      <Pressable style={[styles.primaryButton, { borderColor: severityColor }]}>
+        <ThemedText style={[styles.buttonText, { color: severityColor }]}>
+          I received this alert
+        </ThemedText>
+      </Pressable>
+
+      <View style={styles.expandIconContainer}>
+        <ThemedText style={[{ color: '#999', fontSize: 12 }]}>
+          {isExpanded ? 'Show less' : 'Show more'}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+};
 
 export default function NotificationScreen() {
   const { isDarkMode } = useTheme();
@@ -423,66 +540,9 @@ export default function NotificationScreen() {
           )}
         </View>
 
-        {currentNotifications.map(alert => {
-          const severityColor = severityColors[alert.severity] ?? '#999';
-          return (
-            <View key={alert.id} style={[styles.card, { backgroundColor: cardBackground }]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.categoryRow}>
-                  <IconSymbol name={alert.icon} size={18} color={severityColor} />
-                  <ThemedText style={[styles.categoryText, { color: textColor }]}>
-                    {alert.category} · {alert.type}
-                  </ThemedText>
-                </View>
-                <View
-                  style={[
-                    styles.severityPill,
-                    { borderColor: severityColor, backgroundColor: `${severityColor}15` },
-                  ]}
-                >
-                  <ThemedText style={[styles.severityText, { color: severityColor }]}>
-                    {alert.severity}
-                  </ThemedText>
-                </View>
-              </View>
-
-              <ThemedText type="subtitle" style={[styles.titleText, { color: textColor }]}>
-                {alert.title}
-              </ThemedText>
-
-              <ThemedText style={[styles.typeLabel, { color: textColor }]}>{alert.alertType}</ThemedText>
-
-              <ThemedText style={[styles.description, { color: textColor }]}>
-                {alert.description}
-              </ThemedText>
-
-              <View style={styles.actionsContainer}>
-                <ThemedText style={[styles.actionsLabel, { color: textColor }]}>Action steps:</ThemedText>
-                {alert.actions.map(action => (
-                  <View key={action} style={styles.actionRow}>
-                    <View style={[styles.bullet, { backgroundColor: severityColor }]} />
-                    <ThemedText style={[styles.actionText, { color: textColor }]}>{action}</ThemedText>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.footerRow}>
-                <ThemedText style={[styles.timestamp, { color: textColor }]}>
-                  Timestamp: {alert.timestamp}
-                </ThemedText>
-                <ThemedText style={[styles.source, { color: textColor }]}>
-                  Source: {alert.source}
-                </ThemedText>
-              </View>
-
-              <Pressable style={[styles.primaryButton, { borderColor: severityColor }]}>
-                <ThemedText style={[styles.buttonText, { color: severityColor }]}>
-                  I received this alert
-                </ThemedText>
-              </Pressable>
-            </View>
-          );
-        })}
+        {currentNotifications.map(alert => (
+          <NotificationCard key={alert.id} alert={alert} cardBackground={cardBackground} textColor={textColor} />
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -698,5 +758,12 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  expandedContent: {
+    marginTop: 8,
+  },
+  expandIconContainer: {
+    alignItems: 'center',
+    marginTop: 12,
   },
 });
