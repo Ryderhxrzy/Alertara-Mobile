@@ -123,15 +123,19 @@ function GoogleMapComponent({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={INITIAL_REGION}
-        onMapReady={handleMapReady}
-        onPress={onMapPress}
-        zoomEnabled
-        scrollEnabled
-        pitchEnabled
-        rotateEnabled
+      provider={PROVIDER_GOOGLE}
+      style={styles.map}
+      initialRegion={INITIAL_REGION}
+      onMapReady={handleMapReady}
+      onPress={onMapPress}
+      zoomEnabled
+      scrollEnabled
+      pitchEnabled
+      rotateEnabled
+      showsMyLocationButton={false}
+      toolbarEnabled={false}
+      showsCompass={false}
+      zoomControlEnabled={false}
       >
         {coordinates.length > 0 && (
           <Polygon

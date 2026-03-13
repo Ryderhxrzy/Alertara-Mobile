@@ -224,11 +224,6 @@ export default function SafetyMapScreen() {
   const isFetchingWeatherRef = useRef(false);
   const hasLoadedWeatherRef = useRef(false);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
-  const [infoPanelHeight, setInfoPanelHeight] = useState(0);
-  const quickActionsDynamicStyle = useMemo(
-    () => ({ bottom: showInfoPanel ? infoPanelHeight + 32 : 86 }),
-    [showInfoPanel, infoPanelHeight]
-  );
 
   const toggleLayer = useCallback((layer: "alert" | "weather" | "evac") => {
     setLayerVisibility((prev) => ({
@@ -245,6 +240,11 @@ export default function SafetyMapScreen() {
   const activeWeatherMarkers = useMemo(
     () => (layerVisibility.weather ? weatherMarkers : []),
     [layerVisibility.weather, weatherMarkers]
+  );
+
+  const quickActionsDynamicStyle = useMemo(
+    () => ({ bottom: showInfoPanel ? 170 : 86 }),
+    [showInfoPanel]
   );
 
   const nearestEvacuation = useMemo(() => {
@@ -371,19 +371,14 @@ export default function SafetyMapScreen() {
     areaWeatherSummary?.forecastTimeLabel
       ? `Forecast slot: ${areaWeatherSummary.forecastTimeLabel}`
       : "Weather updates every 10 minutes.";
-  const hourlyTimeLabels = useMemo(
-    () => ["11:00 AM", "02:00 PM", "05:00 PM", "08:00 PM"],
-    []
-  );
-  const degreeSymbol = "\u00B0";
-  const horizontalForecast = useMemo(
-    () =>
-      weeklyForecast.slice(0, 4).map((day, index) => ({
-        ...day,
-        label: hourlyTimeLabels[index] ?? day.label,
-      })),
-    [weeklyForecast, hourlyTimeLabels]
-  );
+  const leftWeatherCardColor = isDarkMode ? "#0f172a" : "#e0f2fe";
+  const rightWeatherCardColor = isDarkMode ? "#1f2937" : "#fef3c7";
+  const forecastItemBackground = isDarkMode
+    ? "rgba(56, 189, 248, 0.12)"
+    : "rgba(14, 165, 233, 0.2)";
+  const forecastItemBorder = isDarkMode
+    ? "rgba(56, 189, 248, 0.4)"
+    : "rgba(14, 165, 233, 0.4)";
 
   // Fetch user location on mount
   useEffect(() => {
@@ -576,7 +571,12 @@ export default function SafetyMapScreen() {
       </View>
 
       {/* Quick Actions */}
-      <View style={[styles.quickActions, quickActionsDynamicStyle]}>
+      <View
+        style={[
+          styles.quickActions,
+          quickActionsDynamicStyle,
+        ]}
+      >
         <Pressable
           style={[
             styles.quickActionButton,
@@ -724,17 +724,8 @@ export default function SafetyMapScreen() {
             styles.infoPanel,
             { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
           ]}
-          onLayout={(event) => setInfoPanelHeight(event.nativeEvent.layout.height)}
         >
-          <View
-            style={[
-              styles.infoPanelHeader,
-              showWeatherSummary && styles.weatherHeaderBackground,
-              showWeatherSummary && {
-                backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
-              },
-            ]}
-          >
+          <View style={styles.infoPanelHeader}>
             {showWeatherSummary ? (
               <View style={styles.infoPanelTitleRow}>
                 <IconSymbol name="location" size={16} color={TealColors.primary} />
@@ -831,107 +822,89 @@ export default function SafetyMapScreen() {
           )}
 
           {showWeatherSummary && (
-            <>
-              <View style={styles.weatherCardHeader}>
-                <View style={styles.weatherHeaderText}>
-                  <ThemedText
-                    style={[
-                      styles.locationLabel,
-                      { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
-                    ]}
-                    numberOfLines={1}
-                  >
+            <View style={styles.twoColumnContainer}>
+                {/* Left Column: Current Area Weather (card) */}
+                <View
+                  style={[
+                    styles.leftColumn,
+                    styles.columnCard,
+                    { backgroundColor: leftWeatherCardColor },
+                  ]}
+                >
+                  <ThemedText style={styles.compactAreaName} numberOfLines={1}>
                     {areaWeatherSummary?.barangay ?? "Talayan"}
                   </ThemedText>
-                  <ThemedText
-                    style={styles.temperatureLabel}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    {weatherTemperatureLabel}
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.conditionLabel,
-                      { color: isDarkMode ? "#cbd5f5" : "#64748b" },
-                    ]}
-                    numberOfLines={1}
-                  >
+                  <View style={styles.leftTempRow}>
+                    <Image
+                      source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
+                      style={styles.leftWeatherIcon}
+                      resizeMode="contain"
+                    />
+                    <ThemedText style={styles.leftWeatherTemp}>
+                      {weatherTemperatureLabel}
+                    </ThemedText>
+                  </View>
+                  <ThemedText style={styles.compactWeatherCondition} numberOfLines={1}>
                     {weatherDescription}
                   </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.weatherDetailLine,
-                      { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
-                    ]}
-                  >
+                  <ThemedText style={styles.compactUpdateText}>
                     {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
                   </ThemedText>
                 </View>
+
+                {/* Right Column: 6-Day Forecast (card) */}
                 <View
                   style={[
-                    styles.weatherIconBackground,
-                    {
-                      backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6",
-                    },
+                    styles.rightColumn,
+                    styles.columnCard,
+                    { backgroundColor: rightWeatherCardColor },
                   ]}
                 >
-                  <Image
-                    source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
-                    style={styles.weatherIconLarge}
-                    resizeMode="contain"
-                  />
-                </View>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hourlyForecastListContent}
-              >
-                {horizontalForecast.length > 0 ? (
-                  horizontalForecast.map((slot) => (
-                    <View
-                      key={slot.date}
-                      style={[
-                        styles.hourlyForecastItem,
-                        {
-                          backgroundColor: isDarkMode
-                            ? "rgba(56, 189, 248, 0.15)"
-                            : "#f1f5f9",
-                          borderColor: isDarkMode
-                            ? "rgba(14, 165, 233, 0.3)"
-                            : "rgba(15, 23, 42, 0.08)",
-                          marginRight: 10,
-                        },
-                      ]}
-                    >
-                      <ThemedText style={styles.hourlyTime}>
-                        {slot.label}
-                      </ThemedText>
-                      <Image
-                        source={slot.weatherIcon}
-                        style={styles.hourlyIcon}
-                        resizeMode="contain"
-                      />
-                      <ThemedText
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.verticalForecastList}
+                  >
+                    {weeklyForecast.length > 0 ? (
+                      weeklyForecast.map((day) => (
+                        <View
+                          key={day.date}
+                          style={[
+                            styles.verticalForecastItem,
+                            {
+                              backgroundColor: forecastItemBackground,
+                              borderColor: forecastItemBorder,
+                            },
+                          ]}
+                        >
+                          <ThemedText style={styles.verticalForecastDay}>
+                            {day.label}
+                          </ThemedText>
+                          <Image
+                            source={day.weatherIcon}
+                            style={styles.verticalForecastIcon}
+                            resizeMode="contain"
+                          />
+                          <ThemedText style={styles.verticalForecastTemp}>
+                            {day.high}°
+                          </ThemedText>
+                        </View>
+                      ))
+                    ) : (
+                      <View
                         style={[
-                          styles.hourlyTemp,
-                          { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          styles.verticalForecastItem,
+                          {
+                            backgroundColor: forecastItemBackground,
+                            borderColor: forecastItemBorder,
+                          },
                         ]}
                       >
-                        {slot.high}
-                        {degreeSymbol}
-                      </ThemedText>
-                    </View>
-                  ))
-                ) : (
-                  <ThemedText style={styles.hourlyPlaceholder}>
-                    Forecast soon
-                  </ThemedText>
-                )}
-              </ScrollView>
-            </>
+                        <ThemedText style={styles.verticalForecastDay}>N/A</ThemedText>
+                      </View>
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
           )}
         </View>
       )}
@@ -1045,11 +1018,7 @@ const styles = StyleSheet.create({
   quickActions: {
     position: "absolute",
     right: 16,
-    flexDirection: "column",
-    alignItems: "flex-end",
     gap: 10,
-    zIndex: 20,
-    elevation: 8,
   },
   quickActionButton: {
     flexDirection: "row",
@@ -1117,12 +1086,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-  weatherHeaderBackground: {
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 8,
-  },
   infoPanelSubtitle: {
     fontSize: 12,
     color: "#94a3b8",
@@ -1132,91 +1095,91 @@ const styles = StyleSheet.create({
     padding: 4,
     marginRight: -4,
   },
-  weatherCardHeader: {
+  twoColumnContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
+    paddingTop: 4,
     gap: 12,
-    marginBottom: 14,
+    marginTop: 8,
   },
-  weatherHeaderText: {
-    flex: 1,
-    marginRight: 12,
-    minWidth: 0,
-  },
-  locationLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  temperatureLabel: {
-    fontSize: 38,
-    fontWeight: "700",
-    color: TealColors.primary,
-    letterSpacing: -1,
-    flexShrink: 1,
-    minWidth: 0,
-    maxWidth: 180,
-    lineHeight: 42,
-    includeFontPadding: false,
-  },
-  conditionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  weatherDetailLine: {
-    fontSize: 11,
-    color: "#94a3b8",
-  },
-  weatherIconLarge: {
-    width: 72,
-    height: 72,
-  },
-  weatherIconBackground: {
-    borderRadius: 20,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
+  columnCard: {
+    borderRadius: 16,
+    padding: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
-  hourlyForecastListContent: {
+  leftColumn: {
+    flex: 0.45,
+    justifyContent: "center",
+  },
+  rightColumn: {
+    flex: 0.55,
+    minHeight: 152,
+    maxHeight: 152,
+    height: 152,
+  },
+  compactAreaName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  leftTempRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: 8,
+    marginBottom: 4,
   },
-  hourlyForecastItem: {
-    width: 92,
+  leftWeatherIcon: {
+    width: 40,
+    height: 40,
+    marginRight: 6,
+  },
+  leftWeatherTemp: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: TealColors.primary,
+  },
+  compactWeatherCondition: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+    textTransform: "capitalize",
+    marginBottom: 2,
+  },
+  compactUpdateText: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  verticalForecastList: {
+    paddingBottom: 4,
+    gap: 4,
+  },
+  verticalForecastItem: {
+    flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingVertical: 10,
+    justifyContent: "space-between",
+    paddingVertical: 4,
     paddingHorizontal: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "transparent",
   },
-  hourlyTime: {
+  verticalForecastDay: {
     fontSize: 12,
-    color: "#475569",
-    marginBottom: 6,
+    fontWeight: "600",
+    color: "#64748b",
+    width: 32,
   },
-  hourlyIcon: {
+  verticalForecastIcon: {
     width: 32,
     height: 32,
-    marginBottom: 6,
   },
-  hourlyTemp: {
-    fontSize: 14,
+  verticalForecastTemp: {
+    fontSize: 13,
     fontWeight: "700",
-    color: "#0f172a",
-  },
-  hourlyPlaceholder: {
-    fontSize: 12,
-    color: "#94a3b8",
+    width: 28,
+    textAlign: "right",
   },
   markerDetailCard: {
     borderRadius: 14,
