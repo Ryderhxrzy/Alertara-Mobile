@@ -43,6 +43,9 @@ interface WeatherMarkerData {
   weatherIconUrl?: string | null;
   forecastTimeLabel: string | null;
   weeklyForecast: DailyForecast[];
+  feelsLike: number | null;
+  humidity: number | null;
+  precipitationChance: number | null;
 }
 
 interface DailyForecast {
@@ -106,6 +109,9 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     weatherIconUrl: null,
     forecastTimeLabel: null,
     weeklyForecast: [],
+    feelsLike: null,
+    humidity: null,
+    precipitationChance: null,
   };
 }
 
@@ -363,6 +369,20 @@ export default function SafetyMapScreen() {
     typeof areaWeatherSummary?.temperatureC === "number"
       ? `${areaWeatherSummary.temperatureC}\u00B0C`
       : "--\u00B0C";
+  const feelsLikeLabel =
+    typeof areaWeatherSummary?.feelsLike === "number"
+      ? `${areaWeatherSummary.feelsLike}\u00B0`
+      : "--\u00B0";
+  const precipitationLabel =
+    typeof areaWeatherSummary?.precipitationChance === "number"
+      ? `${areaWeatherSummary.precipitationChance}%`
+      : "--%";
+  const humidityLabel =
+    typeof areaWeatherSummary?.humidity === "number"
+      ? `${areaWeatherSummary.humidity}%`
+      : "--%";
+  const statValueColor = isDarkMode ? "#e2e8f0" : "#0f172a";
+  const statLabelColor = isDarkMode ? "#94a3b8" : "#94a3b8";
 
   const weatherDescription =
     areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
@@ -426,20 +446,23 @@ export default function SafetyMapScreen() {
       isFetchingWeatherRef.current = true;
 
         if (mounted && showLoadingState) {
-          setWeatherMarkers(
-            barangayWeatherPoints.map((point) => ({
-              id: point.id,
-              barangay: point.barangay,
-              latitude: point.latitude,
-              longitude: point.longitude,
-              temperatureC: null,
-              weatherLabel: "Loading...",
-              weatherIcon: WeatherIcons.default,
-              weatherIconUrl: null,
-              forecastTimeLabel: null,
-              weeklyForecast: [],
-            }))
-          );
+            setWeatherMarkers(
+              barangayWeatherPoints.map((point) => ({
+                id: point.id,
+                barangay: point.barangay,
+                latitude: point.latitude,
+                longitude: point.longitude,
+                temperatureC: null,
+                weatherLabel: "Loading...",
+                weatherIcon: WeatherIcons.default,
+                weatherIconUrl: null,
+                forecastTimeLabel: null,
+                weeklyForecast: [],
+                feelsLike: null,
+                humidity: null,
+                precipitationChance: null,
+              }))
+            );
         }
 
       try {
@@ -469,6 +492,15 @@ export default function SafetyMapScreen() {
               weatherIconUrl: iconUrl,
               forecastTimeLabel,
               weeklyForecast: weeklyData,
+              feelsLike: typeof nearestSlot?.main?.feels_like === "number"
+                ? Math.round(nearestSlot.main.feels_like)
+                : null,
+              humidity: typeof nearestSlot?.main?.humidity === "number"
+                ? Math.round(nearestSlot.main.humidity)
+                : null,
+              precipitationChance: typeof nearestSlot?.pop === "number"
+                ? Math.round(nearestSlot.pop * 100)
+                : null,
             };
           })
         );
@@ -833,41 +865,107 @@ export default function SafetyMapScreen() {
           {showWeatherSummary && (
             <>
               <View style={styles.weatherCardHeader}>
-                <View style={styles.weatherHeaderText}>
-                  <ThemedText
+                <View style={styles.weatherInfoGroup}>
+                  <View
                     style={[
-                      styles.locationLabel,
-                      { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {areaWeatherSummary?.barangay ?? "Talayan"}
-                  </ThemedText>
-                  <ThemedText
-                    style={styles.temperatureLabel}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    {weatherTemperatureLabel}
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.conditionLabel,
-                      { color: isDarkMode ? "#cbd5f5" : "#64748b" },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {weatherDescription}
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.weatherDetailLine,
-                      { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
+                      styles.weatherHeaderText,
+                      { paddingRight: 4 },
                     ]}
                   >
-                    {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
-                  </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.locationLabel,
+                        { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {areaWeatherSummary?.barangay ?? "Talayan"}
+                    </ThemedText>
+                    <ThemedText
+                      style={styles.temperatureLabel}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {weatherTemperatureLabel}
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.conditionLabel,
+                        { color: isDarkMode ? "#cbd5f5" : "#64748b" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {weatherDescription}
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.weatherDetailLine,
+                        { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
+                      ]}
+                    >
+                      {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.weatherStatsColumnRight}>
+                    <View style={styles.statRow}>
+                      <IconSymbol
+                        name="thermometer"
+                        size={16}
+                        color={TealColors.primary}
+                      />
+                      <View>
+                        <ThemedText
+                          style={[styles.statLabel, { color: statLabelColor }]}
+                        >
+                          Feels like
+                        </ThemedText>
+                        <ThemedText
+                          style={[styles.statValue, { color: statValueColor }]}
+                        >
+                          {feelsLikeLabel}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.statRow}>
+                      <IconSymbol
+                        name="cloud.rain"
+                        size={16}
+                        color={TealColors.primary}
+                      />
+                      <View>
+                        <ThemedText
+                          style={[styles.statLabel, { color: statLabelColor }]}
+                        >
+                          Precip
+                        </ThemedText>
+                        <ThemedText
+                          style={[styles.statValue, { color: statValueColor }]}
+                        >
+                          {precipitationLabel}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.statRow}>
+                      <IconSymbol
+                        name="drop"
+                        size={16}
+                        color={TealColors.primary}
+                      />
+                      <View>
+                        <ThemedText
+                          style={[styles.statLabel, { color: statLabelColor }]}
+                        >
+                          Humidity
+                        </ThemedText>
+                        <ThemedText
+                          style={[styles.statValue, { color: statValueColor }]}
+                        >
+                          {humidityLabel}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
                 </View>
                 <View
                   style={[
@@ -1134,16 +1232,20 @@ const styles = StyleSheet.create({
   },
   weatherCardHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
     marginBottom: 14,
   },
-  weatherHeaderText: {
+  weatherInfoGroup: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     flex: 1,
-    marginRight: 12,
+  },
+  weatherHeaderText: {
     minWidth: 0,
+    marginRight: 6,
+    marginTop: 6,
   },
   locationLabel: {
     fontSize: 16,
@@ -1157,7 +1259,6 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     flexShrink: 1,
     minWidth: 0,
-    maxWidth: 180,
     lineHeight: 42,
     includeFontPadding: false,
   },
@@ -1171,8 +1272,8 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
   },
   weatherIconLarge: {
-    width: 72,
-    height: 72,
+    width: 86,
+    height: 86,
   },
   weatherIconBackground: {
     borderRadius: 20,
@@ -1184,6 +1285,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
+  },
+  weatherStatsColumnRight: {
+    flexShrink: 0,
+    alignItems: "flex-start",
+    gap: 4,
+  },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
   },
   hourlyForecastListContent: {
     flexDirection: "row",
