@@ -229,6 +229,8 @@ export default function SafetyMapScreen() {
   const [weeklyForecast, setWeeklyForecast] = useState<DailyForecast[]>([]);
   const isFetchingWeatherRef = useRef(false);
   const hasLoadedWeatherRef = useRef(false);
+  const [showAiSummary, setShowAiSummary] = useState(false);
+  const [aiTypewriterText, setAiTypewriterText] = useState("");
   const aiSummaryScrollRef = useRef<ScrollView>(null);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
   const [infoPanelHeight, setInfoPanelHeight] = useState(0);
@@ -393,6 +395,35 @@ export default function SafetyMapScreen() {
       areaWeatherSummary.weeklyForecast?.[0]?.weatherLabel ?? "variable skies";
     return `AI Weather Bot predicts ${upcomingCondition.toLowerCase()} with ${feelsLikeLabel} feels like, ${precipitationLabel} chance of rain, and ${humidityLabel} humidity.`;
   }, [areaWeatherSummary, feelsLikeLabel, precipitationLabel, humidityLabel]);
+  useEffect(() => {
+    if (showAiSummary) {
+      scrollToAIDescription();
+    }
+  }, [showAiSummary, scrollToAIDescription]);
+  const typewriterSpeedMs = 28;
+  useEffect(() => {
+    if (!showAiSummary) {
+      setAiTypewriterText("");
+      return;
+    }
+    let currentIndex = 0;
+    setAiTypewriterText("");
+    const intervalId = setInterval(() => {
+      setAiTypewriterText((prev) => {
+        const nextChar = weatherAIMessage[currentIndex] ?? "";
+        return prev + nextChar;
+      });
+      currentIndex += 1;
+      if (currentIndex >= weatherAIMessage.length) {
+        clearInterval(intervalId);
+      }
+    }, typewriterSpeedMs);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [showAiSummary, weatherAIMessage]);
+  const aiTypewriterPlaceholder = "AI Weather Bot is preparing your briefing…";
+  const aiTextToRender = aiTypewriterText || aiTypewriterPlaceholder;
 
   const weatherDescription =
     areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
@@ -924,7 +955,13 @@ export default function SafetyMapScreen() {
                           backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
                         },
                       ]}
-                      onPress={scrollToAIDescription}
+                    onPress={() => {
+                      if (!showAiSummary) {
+                        setShowAiSummary(true);
+                      } else {
+                        scrollToAIDescription();
+                      }
+                    }}
                       accessibilityLabel="Scroll to AI weather summary"
                     >
                       <IconSymbol
@@ -1063,57 +1100,59 @@ export default function SafetyMapScreen() {
                     </ThemedText>
                   )}
                 </ScrollView>
-                <View
-                  style={[
-                    styles.aiBotCard,
-                    {
-                      backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
-                      borderColor: isDarkMode
-                        ? "rgba(79, 70, 229, 0.35)"
-                        : "rgba(14, 165, 233, 0.35)",
-                    },
-                  ]}
-                >
+                {showAiSummary && (
                   <View
                     style={[
-                      styles.aiBotIconWrapper,
+                      styles.aiBotCard,
                       {
+                        backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
                         borderColor: isDarkMode
-                          ? "rgba(226, 232, 240, 0.25)"
-                          : "rgba(15, 23, 42, 0.2)",
-                        backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                          ? "rgba(79, 70, 229, 0.35)"
+                          : "rgba(14, 165, 233, 0.35)",
                       },
                     ]}
                   >
-                    <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                    <View
+                      style={[
+                        styles.aiBotIconWrapper,
+                        {
+                          borderColor: isDarkMode
+                            ? "rgba(226, 232, 240, 0.25)"
+                            : "rgba(15, 23, 42, 0.2)",
+                          backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                        },
+                      ]}
+                    >
+                      <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                    </View>
+                    <View style={styles.aiBotContent}>
+                      <ThemedText
+                        style={[
+                          styles.aiBotTitle,
+                          { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                        ]}
+                      >
+                        AI Weather Bot
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.aiBotText,
+                          { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                        ]}
+                      >
+                        {aiTextToRender}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.aiBotCaption,
+                          { color: isDarkMode ? "#94a3b8" : "#475569" },
+                        ]}
+                      >
+                        Tap the robot above to jump here.
+                      </ThemedText>
+                    </View>
                   </View>
-                  <View style={styles.aiBotContent}>
-                    <ThemedText
-                      style={[
-                        styles.aiBotTitle,
-                        { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
-                      ]}
-                    >
-                      AI Weather Bot
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.aiBotText,
-                        { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
-                      ]}
-                    >
-                      {weatherAIMessage}
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.aiBotCaption,
-                        { color: isDarkMode ? "#94a3b8" : "#475569" },
-                      ]}
-                    >
-                      Tap the robot above to jump here.
-                    </ThemedText>
-                  </View>
-                </View>
+                )}
               </ScrollView>
             </>
           )}
