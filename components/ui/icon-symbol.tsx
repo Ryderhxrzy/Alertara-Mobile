@@ -39,6 +39,7 @@ const MAPPING = {
   drop: "water-outline",
   sun: "sunny",
   cloud: "cloud-outline",
+  robot: "robot-outline",
   "arrow.left": "chevron-back",
   "map.fill": "map",
   map: "map-outline",

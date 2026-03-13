@@ -229,6 +229,7 @@ export default function SafetyMapScreen() {
   const [weeklyForecast, setWeeklyForecast] = useState<DailyForecast[]>([]);
   const isFetchingWeatherRef = useRef(false);
   const hasLoadedWeatherRef = useRef(false);
+  const aiSummaryScrollRef = useRef<ScrollView>(null);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
   const [infoPanelHeight, setInfoPanelHeight] = useState(0);
   const quickActionsDynamicStyle = useMemo(
@@ -383,6 +384,15 @@ export default function SafetyMapScreen() {
       : "--%";
   const statValueColor = isDarkMode ? "#e2e8f0" : "#0f172a";
   const statLabelColor = isDarkMode ? "#94a3b8" : "#94a3b8";
+  const scrollToAIDescription = useCallback(() => {
+    aiSummaryScrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+  const weatherAIMessage = useMemo(() => {
+    if (!areaWeatherSummary) return "AI Weather Bot is analyzing your area right now.";
+    const upcomingCondition =
+      areaWeatherSummary.weeklyForecast?.[0]?.weatherLabel ?? "variable skies";
+    return `AI Weather Bot predicts ${upcomingCondition.toLowerCase()} with ${feelsLikeLabel} feels like, ${precipitationLabel} chance of rain, and ${humidityLabel} humidity.`;
+  }, [areaWeatherSummary, feelsLikeLabel, precipitationLabel, humidityLabel]);
 
   const weatherDescription =
     areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
@@ -906,6 +916,23 @@ export default function SafetyMapScreen() {
                     >
                       {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
                     </ThemedText>
+                    <Pressable
+                      style={[
+                        styles.aiTriggerButton,
+                        {
+                          borderColor: isDarkMode ? "#94a3b8" : TealColors.primary,
+                          backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                        },
+                      ]}
+                      onPress={scrollToAIDescription}
+                      accessibilityLabel="Scroll to AI weather summary"
+                    >
+                      <IconSymbol
+                        name="robot"
+                        size={20}
+                        color={isDarkMode ? "#e0f2fe" : TealColors.primary}
+                      />
+                    </Pressable>
                   </View>
                   <View style={styles.weatherStatsColumnRight}>
                     <View style={styles.statRow}>
@@ -983,51 +1010,110 @@ export default function SafetyMapScreen() {
                 </View>
               </View>
               <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hourlyForecastListContent}
+                ref={aiSummaryScrollRef}
+                style={styles.aiScrollContainer}
+                contentContainerStyle={styles.aiScrollContent}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
               >
-                {horizontalForecast.length > 0 ? (
-                  horizontalForecast.map((slot) => (
-                    <View
-                      key={slot.date}
-                      style={[
-                        styles.hourlyForecastItem,
-                        {
-                          backgroundColor: isDarkMode
-                            ? "rgba(56, 189, 248, 0.15)"
-                            : "#f1f5f9",
-                          borderColor: isDarkMode
-                            ? "rgba(14, 165, 233, 0.3)"
-                            : "rgba(15, 23, 42, 0.08)",
-                          marginRight: 10,
-                        },
-                      ]}
-                    >
-                      <ThemedText style={styles.hourlyTime}>
-                        {slot.label}
-                      </ThemedText>
-                      <Image
-                        source={slot.weatherIcon}
-                        style={styles.hourlyIcon}
-                        resizeMode="contain"
-                      />
-                      <ThemedText
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hourlyForecastListContent}
+                >
+                  {horizontalForecast.length > 0 ? (
+                    horizontalForecast.map((slot) => (
+                      <View
+                        key={slot.date}
                         style={[
-                          styles.hourlyTemp,
-                          { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          styles.hourlyForecastItem,
+                          {
+                            backgroundColor: isDarkMode
+                              ? "rgba(56, 189, 248, 0.15)"
+                              : "#f1f5f9",
+                            borderColor: isDarkMode
+                              ? "rgba(14, 165, 233, 0.3)"
+                              : "rgba(15, 23, 42, 0.08)",
+                            marginRight: 10,
+                          },
                         ]}
                       >
-                        {slot.high}
-                        {degreeSymbol}
-                      </ThemedText>
-                    </View>
-                  ))
-                ) : (
-                  <ThemedText style={styles.hourlyPlaceholder}>
-                    Forecast soon
-                  </ThemedText>
-                )}
+                        <ThemedText style={styles.hourlyTime}>
+                          {slot.label}
+                        </ThemedText>
+                        <Image
+                          source={slot.weatherIcon}
+                          style={styles.hourlyIcon}
+                          resizeMode="contain"
+                        />
+                        <ThemedText
+                          style={[
+                            styles.hourlyTemp,
+                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          ]}
+                        >
+                          {slot.high}
+                          {degreeSymbol}
+                        </ThemedText>
+                      </View>
+                    ))
+                  ) : (
+                    <ThemedText style={styles.hourlyPlaceholder}>
+                      Forecast soon
+                    </ThemedText>
+                  )}
+                </ScrollView>
+                <View
+                  style={[
+                    styles.aiBotCard,
+                    {
+                      backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
+                      borderColor: isDarkMode
+                        ? "rgba(79, 70, 229, 0.35)"
+                        : "rgba(14, 165, 233, 0.35)",
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.aiBotIconWrapper,
+                      {
+                        borderColor: isDarkMode
+                          ? "rgba(226, 232, 240, 0.25)"
+                          : "rgba(15, 23, 42, 0.2)",
+                        backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                      },
+                    ]}
+                  >
+                    <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                  </View>
+                  <View style={styles.aiBotContent}>
+                    <ThemedText
+                      style={[
+                        styles.aiBotTitle,
+                        { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                      ]}
+                    >
+                      AI Weather Bot
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.aiBotText,
+                        { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                      ]}
+                    >
+                      {weatherAIMessage}
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.aiBotCaption,
+                        { color: isDarkMode ? "#94a3b8" : "#475569" },
+                      ]}
+                    >
+                      Tap the robot above to jump here.
+                    </ThemedText>
+                  </View>
+                </View>
               </ScrollView>
             </>
           )}
@@ -1304,6 +1390,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#0f172a",
+  },
+  aiTriggerButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  aiScrollContainer: {
+    marginTop: 12,
+  },
+  aiScrollContent: {
+    paddingBottom: 8,
+  },
+  aiBotCard: {
+    flexDirection: "row",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 12,
+    gap: 12,
+    alignItems: "center",
+  },
+  aiBotIconWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiBotContent: {
+    flex: 1,
+  },
+  aiBotTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  aiBotText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  aiBotCaption: {
+    fontSize: 11,
+    marginTop: 6,
   },
   hourlyForecastListContent: {
     flexDirection: "row",
