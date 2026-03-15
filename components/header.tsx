@@ -1,20 +1,20 @@
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
-    DARK_BACKGROUND,
-    DARK_BORDER,
-    DARK_CARD_BG,
-    DARK_ICON,
-    LIGHT_BACKGROUND,
-    LIGHT_BORDER,
-    LIGHT_CARD_BG,
-    LIGHT_ICON,
-    TealColors,
+  DARK_BACKGROUND,
+  DARK_BORDER,
+  DARK_CARD_BG,
+  DARK_ICON,
+  LIGHT_BACKGROUND,
+  LIGHT_BORDER,
+  LIGHT_CARD_BG,
+  LIGHT_ICON,
+  TealColors,
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 export function Header() {
   const router = useRouter();
@@ -23,7 +23,7 @@ export function Header() {
   const ICON_COLOR = isDarkMode ? DARK_ICON : LIGHT_ICON;
   const BORDER_COLOR = isDarkMode ? DARK_BORDER : LIGHT_BORDER;
   const BG_COLOR = isDarkMode ? DARK_BACKGROUND : LIGHT_BACKGROUND;
-  const BUTTON_BG = isDarkMode ? DARK_CARD_BG : LIGHT_CARD_BG;
+  const INPUT_BG = isDarkMode ? DARK_CARD_BG : LIGHT_CARD_BG;
 
   return (
     <View
@@ -32,32 +32,34 @@ export function Header() {
         { backgroundColor: BG_COLOR, borderBottomColor: BORDER_COLOR },
       ]}
     >
-      <View style={styles.leftSection}>
-        <Pressable style={styles.menuButton}>
-          <IconSymbol size={24} name={"menu" as any} color={ICON_COLOR} />
-        </Pressable>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require("@/assets/images/alertara.png")}
-            style={styles.logo}
-          />
-          <ThemedText style={styles.logoText}>lertara QC</ThemedText>
-        </View>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("@/assets/images/alertara.png")}
+          style={styles.logo}
+        />
+        <ThemedText style={styles.logoText}>Alertara QC</ThemedText>
       </View>
-      <View style={styles.iconContainer}>
-        <Pressable
-          style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
-          onPress={() => router.push("/(tabs)/notification")}
-        >
-          <IconSymbol size={24} name="bell" color={ICON_COLOR} />
-        </Pressable>
-        <Pressable
-          style={[styles.iconButton, { backgroundColor: BUTTON_BG }]}
-          onPress={() => router.push("/(tabs)/me")}
-        >
-          <IconSymbol size={24} name="person" color={ICON_COLOR} />
-        </Pressable>
+
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: INPUT_BG, borderColor: BORDER_COLOR },
+        ]}
+      >
+        <IconSymbol size={18} name="search" color={ICON_COLOR} />
+        <TextInput
+          placeholder="Search services"
+          placeholderTextColor={isDarkMode ? "#b0b0b0" : "#7f7f7f"}
+          style={[styles.searchInput, { color: isDarkMode ? "#fff" : "#111" }]}
+        />
       </View>
+
+      <Pressable
+        style={[styles.iconButton, { backgroundColor: INPUT_BG }]}
+        onPress={() => router.push("/(tabs)/notification")}
+      >
+        <IconSymbol size={24} name="bell" color={ICON_COLOR} />
+      </Pressable>
     </View>
   );
 }
@@ -67,24 +69,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     marginTop: 35,
     borderBottomWidth: 1,
   },
-  leftSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  menuButton: {
-    padding: 8,
-  },
   logoContainer: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    gap: -8,
+    gap: 8,
   },
   logo: {
     width: 40,
@@ -95,16 +88,25 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: TealColors.primary,
   },
-  iconContainer: {
+  searchContainer: {
+    flex: 1,
     flexDirection: "row",
-    gap: 12,
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginHorizontal: 12,
+    paddingHorizontal: 10,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
   },
   iconButton: {
-    borderWidth: 0,
-
-    borderRadius: 50,
     width: 44,
     height: 44,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
