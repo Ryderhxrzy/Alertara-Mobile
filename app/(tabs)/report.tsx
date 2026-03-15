@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 
@@ -51,20 +51,23 @@ export default function ReportScreen() {
       .join(", ");
   };
 
-  const refreshAddress = async (coords: typeof locationCoords) => {
-    try {
-      const addresses = await Location.reverseGeocodeAsync(coords);
-      if (addresses.length) {
-        setLocationNote(formatAddress(addresses[0]));
-        setLocationWarning("");
-        return;
-      }
-    } catch (error) {
+  const refreshAddress = useCallback(
+    async (coords: typeof locationCoords) => {
+      try {
+        const addresses = await Location.reverseGeocodeAsync(coords);
+        if (addresses.length) {
+          setLocationNote(formatAddress(addresses[0]));
+          setLocationWarning("");
+          return;
+        }
+    } catch {
       setLocationWarning("Precise address unavailable");
     }
 
-    setLocationNote(formatCoordsDescription(coords));
-  };
+      setLocationNote(formatCoordsDescription(coords));
+    },
+    []
+  );
 
   const applyManualCoords = async (coords: typeof locationCoords) => {
     setLocationCoords(coords);
@@ -124,7 +127,7 @@ export default function ReportScreen() {
     return () => {
       subscribed = false;
     };
-  }, []);
+    }, [refreshAddress]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: background }]}>
