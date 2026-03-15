@@ -23,7 +23,6 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
@@ -84,29 +83,6 @@ export default function HomeScreen() {
           <ThemedText style={styles.subText}>
             Check our latest services and updates
           </ThemedText>
-        </View>
-
-        {/* Search Bar */}
-        <View
-          style={[
-            styles.searchContainer,
-            {
-              backgroundColor: isDarkMode ? DARK_CARD_BG : "#fff",
-              borderColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
-            },
-          ]}
-        >
-          <TextInput
-            style={[
-              styles.searchInput,
-              { color: isDarkMode ? DARK_TEXT : LIGHT_TEXT },
-            ]}
-            placeholder="Search for services..."
-            placeholderTextColor={isDarkMode ? "#666" : "#999"}
-          />
-          <View style={styles.searchIconCircle}>
-            <IconSymbol size={20} name="magnifyingglass" color="#fff" />
-          </View>
         </View>
 
         {/* Central Command Section */}
@@ -448,28 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#999",
     fontWeight: "400",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 50,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 28,
-    gap: 12,
-    borderWidth: 1,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-  },
-  searchIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: TealColors.primary,
-    justifyContent: "center",
-    alignItems: "center",
   },
   centralCommandSection: {
     marginBottom: 28,

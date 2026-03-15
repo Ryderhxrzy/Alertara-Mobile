@@ -34,14 +34,6 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="call"
-        options={{
-          title: "Call",
-          tabBarButton: () => null,
-        }}
-      />
-
-      <Tabs.Screen
         name="map"
         options={{
           title: "Map",
@@ -52,11 +44,19 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="notification"
+        name="call"
         options={{
-          title: "Alerts",
+          title: "Call",
+          tabBarButton: () => null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="report"
+        options={{
+          title: "Report",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="bell" color={color} />
+            <IconSymbol size={28} name="exclamationmark.triangle" color={color} />
           ),
         }}
       />

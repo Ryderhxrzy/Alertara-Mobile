@@ -25,10 +25,7 @@ export function BottomNav({
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
-        const label =
-          route.name === "notification"
-            ? "Notification"
-            : options.title || route.name;
+        const label = route.name === "report" ? "Report" : options.title || route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -61,10 +58,10 @@ export function BottomNav({
             ? isFocused
               ? "house.fill"
               : "house"
-            : route.name === "notification"
+            : route.name === "report"
               ? isFocused
-                ? "bell.fill"
-                : "bell"
+                ? "exclamationmark.triangle.fill"
+                : "exclamationmark.triangle"
               : route.name === "map"
                 ? isFocused
                   ? "map.fill"
@@ -102,7 +99,7 @@ export function BottomNav({
                   name={iconName as any}
                   color={isFocused ? TealColors.primary : "#888"}
                 />
-                {route.name === "notification" && unreadNotifications > 0 && (
+                {route.name === "report" && unreadNotifications > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{unreadNotifications}</Text>
                   </View>
