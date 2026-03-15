@@ -16,6 +16,29 @@ import { useCallback, useEffect, useState } from "react";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 
+type LatLng = {
+  latitude: number;
+  longitude: number;
+};
+
+const formatCoordsDescription = (coords: LatLng) =>
+  `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`;
+
+const formatAddress = (address: Location.LocationGeocodedAddress) => {
+  return [
+    address.name,
+    address.street,
+    address.district,
+    address.city,
+    address.subregion,
+    address.region,
+    address.postalCode,
+    address.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+};
+
 export default function ReportScreen() {
   const { isDarkMode } = useTheme();
   const [summary, setSummary] = useState("");
@@ -24,7 +47,10 @@ export default function ReportScreen() {
   const [locationNote, setLocationNote] = useState("Detecting location...");
   const [showDetails, setShowDetails] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [locationCoords, setLocationCoords] = useState({ latitude: 14.654459, longitude: 121.072997 });
+  const [locationCoords, setLocationCoords] = useState<LatLng>({
+    latitude: 14.654459,
+    longitude: 121.072997,
+  });
   const [manualLock, setManualLock] = useState(false);
   const [locationWarning, setLocationWarning] = useState("");
 
@@ -33,26 +59,8 @@ export default function ReportScreen() {
   const borderColor = isDarkMode ? "#1f2b32" : "#e6e6e6";
   const accent = TealColors.primary;
 
-  const formatCoordsDescription = (coords: typeof locationCoords) =>
-    `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`;
-
-  const formatAddress = (address: Location.LocationGeocodedAddress) => {
-    return [
-      address.name,
-      address.street,
-      address.district,
-      address.city,
-      address.subregion,
-      address.region,
-      address.postalCode,
-      address.country,
-    ]
-      .filter(Boolean)
-      .join(", ");
-  };
-
   const refreshAddress = useCallback(
-    async (coords: typeof locationCoords) => {
+    async (coords: LatLng) => {
       try {
         const addresses = await Location.reverseGeocodeAsync(coords);
         if (addresses.length) {
@@ -60,16 +68,16 @@ export default function ReportScreen() {
           setLocationWarning("");
           return;
         }
-    } catch {
-      setLocationWarning("Precise address unavailable");
-    }
+      } catch {
+        setLocationWarning("Precise address unavailable");
+      }
 
       setLocationNote(formatCoordsDescription(coords));
     },
     []
   );
 
-  const applyManualCoords = async (coords: typeof locationCoords) => {
+  const applyManualCoords = async (coords: LatLng) => {
     setLocationCoords(coords);
     await refreshAddress(coords);
   };
