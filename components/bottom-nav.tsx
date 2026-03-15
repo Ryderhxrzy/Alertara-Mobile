@@ -18,7 +18,6 @@ export function BottomNav({
 }: BottomTabBarProps) {
   const callIndex = state.routes.findIndex((r) => r.name === "call");
   const adjacentSpacing = 40; // spacing reserved on either side of call button
-  const unreadNotifications = 3;
 
   return (
     <View style={styles.container}>
@@ -99,11 +98,6 @@ export function BottomNav({
                   name={iconName as any}
                   color={isFocused ? TealColors.primary : "#888"}
                 />
-                {route.name === "report" && unreadNotifications > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{unreadNotifications}</Text>
-                  </View>
-                )}
               </View>
               <Text
                 numberOfLines={1}
@@ -163,23 +157,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     zIndex: 10,
     marginHorizontal: 20,
-  },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -10,
-    minWidth: 18,
-    paddingHorizontal: 4,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#ff3b30",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
   },
   // styling for the legacy teal button is no longer used; handled inside EmergencyCallButton
 });
