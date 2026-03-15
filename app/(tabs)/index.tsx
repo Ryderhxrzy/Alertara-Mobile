@@ -1,6 +1,8 @@
+import React, { useState } from "react";
 import { Header } from "@/components/header";
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { systemClusters, systemRegistry } from "@/data/central-command-systems";
 import {
   Colors,
   DARK_BORDER,
@@ -21,13 +23,26 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
+  const [activeClusterId, setActiveClusterId] = useState(
+    systemClusters[0].id
+  );
+
+  const activeCluster =
+    systemClusters.find((cluster) => cluster.id === activeClusterId) ??
+    systemClusters[0];
+  const activeSystems = activeCluster.systems
+    .map((id) => systemRegistry[id])
+    .filter(Boolean);
+
+  const handleSystemPress = (systemId: string) => {
+    router.push(`/central-command/${systemId}`);
+  };
 
   return (
     <SafeAreaView
@@ -70,26 +85,99 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
 
-        {/* Search Bar */}
-        <View
-          style={[
-            styles.searchContainer,
-            {
-              backgroundColor: isDarkMode ? DARK_CARD_BG : "#fff",
-              borderColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
-            },
-          ]}
-        >
-          <TextInput
-            style={[
-              styles.searchInput,
-              { color: isDarkMode ? DARK_TEXT : LIGHT_TEXT },
-            ]}
-            placeholder="Search for services..."
-            placeholderTextColor={isDarkMode ? "#666" : "#999"}
-          />
-          <View style={styles.searchIconCircle}>
-            <IconSymbol size={20} name="magnifyingglass" color="#fff" />
+        {/* Central Command Section */}
+        <View style={styles.centralCommandSection}>
+          <View style={styles.sectionTitleContainer}>
+            <ThemedText style={styles.sectionTitle}>Central Command</ThemedText>
+            <IconSymbol
+              size={20}
+              name="shield"
+              color={isDarkMode ? DARK_ICON : LIGHT_ICON}
+            />
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.clusterScroll}
+          >
+            {systemClusters.map((cluster) => {
+              const isActive = cluster.id === activeClusterId;
+              return (
+                <Pressable
+                  key={cluster.id}
+                  onPress={() => setActiveClusterId(cluster.id)}
+                  style={[
+                    styles.clusterPill,
+                    isActive && styles.activeClusterPill,
+                  ]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.clusterPillText,
+                      isActive && styles.activeClusterPillText,
+                    ]}
+                  >
+                    {cluster.label}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.systemCardGrid}>
+            {activeSystems.map((system) => (
+              <Pressable
+                key={system.id}
+                style={[
+                  styles.systemCard,
+                  {
+                    backgroundColor: isDarkMode
+                      ? DARK_CARD_BG
+                      : LIGHT_CARD_BG,
+                    borderColor: isDarkMode ? DARK_BORDER : LIGHT_BORDER,
+                  },
+                ]}
+                onPress={() => handleSystemPress(system.id)}
+              >
+                <View style={styles.systemCardHeader}>
+                  <View
+                    style={[
+                      styles.systemIcon,
+                      { backgroundColor: system.accent },
+                    ]}
+                  >
+                    <IconSymbol
+                      size={20}
+                      name={system.icon}
+                      color="#fff"
+                    />
+                  </View>
+                  <View style={styles.systemHeaderText}>
+                    <ThemedText style={styles.systemCardTitle}>
+                      {system.title}
+                    </ThemedText>
+                    <ThemedText style={styles.systemDescription}>
+                      {system.description}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={styles.moduleList}>
+                  {system.modules.map((module) => (
+                    <View key={module} style={styles.moduleRow}>
+                      <View
+                        style={[
+                          styles.moduleDot,
+                          { backgroundColor: system.accent },
+                        ]}
+                      />
+                      <ThemedText style={styles.moduleText}>{module}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              </Pressable>
+            ))}
           </View>
         </View>
 
@@ -337,27 +425,83 @@ const styles = StyleSheet.create({
     color: "#999",
     fontWeight: "400",
   },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 50,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  centralCommandSection: {
     marginBottom: 28,
-    gap: 12,
+  },
+  clusterScroll: {
+    paddingBottom: 4,
+    marginBottom: 12,
+  },
+  clusterPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: "#f0f0f0",
+    marginRight: 10,
     borderWidth: 1,
+    borderColor: "#ddd",
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-  },
-  searchIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  activeClusterPill: {
     backgroundColor: TealColors.primary,
+    borderColor: TealColors.primary,
+  },
+  clusterPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  activeClusterPillText: {
+    color: "#fff",
+  },
+  systemCardGrid: {
+    gap: 12,
+  },
+  systemCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+  },
+  systemCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  systemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+  },
+  systemHeaderText: {
+    flex: 1,
+  },
+  systemCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  systemDescription: {
+    fontSize: 13,
+    marginTop: 4,
+    color: "#666",
+  },
+  moduleList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  moduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  moduleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  moduleText: {
+    fontSize: 13,
+    color: "#555",
   },
   servicesSection: {
     marginBottom: 28,

@@ -24,7 +24,7 @@ export function BottomNav({
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
-        const label = options.title || route.name;
+        const label = route.name === "report" ? "Report" : options.title || route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -57,10 +57,10 @@ export function BottomNav({
             ? isFocused
               ? "house.fill"
               : "house"
-            : route.name === "notification"
+            : route.name === "report"
               ? isFocused
-                ? "bell.fill"
-                : "bell"
+                ? "exclamationmark.triangle.fill"
+                : "exclamationmark.triangle"
               : route.name === "map"
                 ? isFocused
                   ? "map.fill"
@@ -92,12 +92,17 @@ export function BottomNav({
             style={[styles.tab, extraStyle]}
           >
             <View style={styles.tabContent}>
-              <IconSymbol
-                size={24}
-                name={iconName as any}
-                color={isFocused ? TealColors.primary : "#888"}
-              />
+              <View style={styles.iconWrapper}>
+                <IconSymbol
+                  size={24}
+                  name={iconName as any}
+                  color={isFocused ? TealColors.primary : "#888"}
+                />
+              </View>
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
                 style={[
                   styles.label,
                   isFocused && { color: TealColors.primary },
@@ -135,6 +140,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     // explicitly stack icon above text
     flexDirection: "column",
+  },
+  iconWrapper: {
+    position: "relative",
   },
   label: {
     fontSize: 12,

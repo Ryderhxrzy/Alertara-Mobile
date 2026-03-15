@@ -1,32 +1,32 @@
 import { Header } from "@/components/header";
 import {
-  SettingsDivider,
-  SettingsMenuItem,
-  SettingsSection,
-  SettingsSelect,
-  SettingsToggle,
+    SettingsDivider,
+    SettingsMenuItem,
+    SettingsSection,
+    SettingsSelect,
+    SettingsToggle,
 } from "@/components/settings-components";
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import {
-  Colors,
-  DARK_CARD_BG,
-  LIGHT_CARD_BG,
-  TealColors,
+    Colors,
+    DARK_CARD_BG,
+    LIGHT_CARD_BG,
+    TealColors,
 } from "@/constants/theme";
 import { useAuth } from "@/context/auth-context";
-import { usePreferences, LanguageOption } from "@/context/preferences-context";
+import { LanguageOption, usePreferences } from "@/context/preferences-context";
 import { useTheme } from "@/context/theme-context";
 import React, { useState } from "react";
 import {
-  Alert,
-  Modal,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
+    Alert,
+    Modal,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View,
 } from "react-native";
 
 export default function MeScreen() {
@@ -545,8 +545,9 @@ export default function MeScreen() {
                     3. Disclaimer
                   </ThemedText>
                   {"\n"}
-                  Alertara is provided &quot;as is&quot; without warranties. We are not
-                  liable for inaccurate location data or incident information.
+                  Alertara is provided &quot;as is&quot; without warranties. We
+                  are not liable for inaccurate location data or incident
+                  information.
                   {"\n\n"}
                   <ThemedText style={styles.policySubheading}>
                     4. Limitation of Liability
