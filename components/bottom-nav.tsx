@@ -109,6 +109,9 @@ export function BottomNav({
                 )}
               </View>
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
                 style={[
                   styles.label,
                   isFocused && { color: TealColors.primary },
