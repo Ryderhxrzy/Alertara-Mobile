@@ -148,10 +148,12 @@ export const systemRegistry: Record<string, SystemDefinition> = {
     icon: "broadcast",
     accent: "#c0392b",
     modules: [
-      "Mass Notification (SMS, Email, PA)",
-      "Alert Categorization & Automation",
-      "Two-Way Communication Interface",
-      "Log & Audit Trail",
+      "Mass Notification",
+      "Alert Catalog",
+      "Two-Way Feedback",
+      "Language Support",
+      "Subscriptions & Preferences",
+      "Audit Log",
     ],
   },
   inventory: {
