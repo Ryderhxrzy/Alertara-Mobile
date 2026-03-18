@@ -186,30 +186,36 @@ function GoogleMapComponent({
           );
         })}
 
-        {weatherMarkers.map((weather) => (
-          <Marker
-            key={weather.id}
-            coordinate={{ latitude: weather.latitude, longitude: weather.longitude }}
-            title={`${weather.barangay} Weather`}
-            description={`${weather.weatherLabel}${weather.forecastTimeLabel ? ` at ${weather.forecastTimeLabel}` : ""}${weather.temperatureC !== null ? `, ${weather.temperatureC}\u00B0C` : ""}`}
-            onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
-            tracksViewChanges={true}
-          >
-            {weather.weatherIconUrl ? (
-              <Image
-                source={{ uri: weather.weatherIconUrl }}
-                style={styles.weatherMarkerIcon}
-                resizeMode="contain"
-              />
-            ) : (
-              <IconSymbol
-                name="cloud-outline"
-                size={32}
-                color={weatherPinColor(weather.weatherLabel)}
-              />
-            )}
-          </Marker>
-        ))}
+        {weatherMarkers.map((weather) => {
+          const markerIconSource =
+            weather.weatherIconUrl && weather.weatherIconUrl.trim().length > 0
+              ? { uri: weather.weatherIconUrl }
+              : null;
+          return (
+            <Marker
+              key={weather.id}
+              coordinate={{ latitude: weather.latitude, longitude: weather.longitude }}
+              title={`${weather.barangay} Weather`}
+              description={`${weather.weatherLabel}${weather.forecastTimeLabel ? ` at ${weather.forecastTimeLabel}` : ""}${weather.temperatureC !== null ? `, ${weather.temperatureC}\u00B0C` : ""}`}
+              onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
+              tracksViewChanges={true}
+            >
+              {markerIconSource ? (
+                <Image
+                  source={markerIconSource}
+                  style={styles.weatherMarkerIcon}
+                  resizeMode="contain"
+                />
+              ) : (
+                <IconSymbol
+                  name="cloud-outline"
+                  size={32}
+                  color={weatherPinColor(weather.weatherLabel)}
+                />
+              )}
+            </Marker>
+          );
+        })}
 
         {crimeData.map((crime, index) => (
           <Marker

@@ -11,7 +11,7 @@ import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 const EMPTY_CRIME_DATA: never[] = [];
 
@@ -60,6 +60,53 @@ interface DailyForecast {
 const WEATHER_REFRESH_MS = 10 * 60 * 1000;
 const WEATHER_REQUEST_TIMEOUT_MS = 12000;
 const WEATHER_REQUEST_RETRIES = 2;
+const OWM_ICON_BASE = "https://openweathermap.org/img/wn";
+const INFO_PANEL_MAX_HEIGHT = Dimensions.get("window").height * 0.42;
+const FALLBACK_CONDITIONS: Array<{
+  label: string;
+  icon: any;
+  temp: number;
+  feelsLike: number;
+  humidity: number;
+  precipitationChance: number;
+}> = [
+  {
+    label: "Clear Sky",
+    icon: WeatherIcons.sunny,
+    owmIcon: "01d",
+    temp: 32,
+    feelsLike: 35,
+    humidity: 52,
+    precipitationChance: 5,
+  },
+  {
+    label: "Scattered Clouds",
+    icon: WeatherIcons.broken_clouds,
+    owmIcon: "03d",
+    temp: 30,
+    feelsLike: 32,
+    humidity: 58,
+    precipitationChance: 12,
+  },
+  {
+    label: "Light Rain",
+    icon: WeatherIcons.rain,
+    owmIcon: "10d",
+    temp: 28,
+    feelsLike: 29,
+    humidity: 71,
+    precipitationChance: 38,
+  },
+  {
+    label: "Overcast",
+    icon: WeatherIcons.broken_clouds,
+    owmIcon: "04d",
+    temp: 29,
+    feelsLike: 30,
+    humidity: 64,
+    precipitationChance: 20,
+  },
+];
 
 /**
  * OpenWeatherMap Condition Codes Mapping
@@ -113,6 +160,44 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     humidity: null,
     precipitationChance: null,
   };
+}
+
+function buildOwmIconUrl(iconCode?: string | null): string | null {
+  if (!iconCode) return null;
+  return `${OWM_ICON_BASE}/${iconCode}@4x.png`;
+}
+
+function buildFallbackWeather(): WeatherMarkerData[] {
+  const now = Date.now();
+  return barangayWeatherPoints.map((point, index) => {
+    const fallback = FALLBACK_CONDITIONS[index % FALLBACK_CONDITIONS.length];
+    const iconUrl = buildOwmIconUrl(fallback.owmIcon);
+    const weeklyForecast: DailyForecast[] = Array.from({ length: 4 }).map((_, dayIndex) => ({
+      date: now + dayIndex * 24 * 60 * 60 * 1000,
+      label: new Date(now + dayIndex * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
+        weekday: "short",
+      }),
+      high: fallback.temp + (dayIndex % 2 === 0 ? 1 : -1),
+      low: fallback.temp - 2,
+      weatherLabel: fallback.label,
+      weatherIcon: fallback.icon,
+    }));
+    return {
+      id: point.id,
+      barangay: point.barangay,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      temperatureC: fallback.temp,
+      weatherLabel: fallback.label,
+      weatherIcon: fallback.icon,
+      weatherIconUrl: iconUrl,
+      forecastTimeLabel: "Local snapshot",
+      weeklyForecast,
+      feelsLike: fallback.feelsLike,
+      humidity: fallback.humidity,
+      precipitationChance: fallback.precipitationChance,
+    };
+  });
 }
 
 function compileWeeklyForecast(list?: any[]): DailyForecast[] {
@@ -474,11 +559,12 @@ export default function SafetyMapScreen() {
 
       if (!OWM_API_KEY) {
         console.warn(
-          "OpenWeatherMap API Key (EXPO_PUBLIC_OPENWEATHER_API_KEY) is missing in .env. Current OWM_API_KEY:",
-          OWM_API_KEY
+          "OpenWeatherMap API Key (EXPO_PUBLIC_OPENWEATHER_API_KEY) is missing in .env. Falling back to mock weather data."
         );
         if (mounted) {
-          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          const fallbackWeather = buildFallbackWeather();
+          setWeatherMarkers(fallbackWeather);
+          setWeeklyForecast(fallbackWeather[0]?.weeklyForecast ?? []);
           hasLoadedWeatherRef.current = true;
         }
         return;
@@ -565,7 +651,9 @@ export default function SafetyMapScreen() {
       } catch (error) {
         console.error("Failed to fetch barangay forecasts:", error);
         if (mounted) {
-          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          const fallbackWeather = buildFallbackWeather();
+          setWeatherMarkers(fallbackWeather);
+          setWeeklyForecast(fallbackWeather[0]?.weeklyForecast ?? []);
           hasLoadedWeatherRef.current = true;
         }
       } finally {
@@ -835,327 +923,334 @@ export default function SafetyMapScreen() {
             </Pressable>
           </View>
 
-          {selectedMarkerData?.type !== "weather" && !showWeatherSummary && (
-            <ThemedText style={styles.infoPanelSubtitle}>
-              {selectedMarkerMessage}
-            </ThemedText>
-          )}
-
-          {selectedMarkerData?.type === "evacuation" && (
-            <View
-              style={[
-                styles.markerDetailCard,
-                {
-                  backgroundColor: isDarkMode ? "#0f172a" : "#e0f2fe",
-                },
-              ]}
-            >
-              <ThemedText style={styles.markerDetailLabel}>
-                Evacuation center
+          <ScrollView
+            style={styles.infoContentScroll}
+            contentContainerStyle={styles.infoContentContainer}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
+          >
+            {selectedMarkerData?.type !== "weather" && !showWeatherSummary && (
+              <ThemedText style={styles.infoPanelSubtitle}>
+                {selectedMarkerMessage}
               </ThemedText>
-              <ThemedText
+            )}
+
+            {selectedMarkerData?.type === "evacuation" && (
+              <View
                 style={[
-                  styles.markerDetailValue,
-                  { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                  styles.markerDetailCard,
+                  {
+                    backgroundColor: isDarkMode ? "#0f172a" : "#e0f2fe",
+                  },
                 ]}
               >
-                {selectedMarkerData.data.name}
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.markerDetailMeta,
-                  { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
-                ]}
-              >
-                {selectedMarkerData.data.district}
-                {selectedEvacuationDistanceLabel
-                  ? ` • ${selectedEvacuationDistanceLabel} away`
-                  : ""}
-              </ThemedText>
-            </View>
-          )}
-
-          {selectedMarkerData?.type === "crime" && (
-            <View
-              style={[
-                styles.markerDetailCard,
-                {
-                  backgroundColor: isDarkMode ? "#3b0d0d" : "#fee2e2",
-                },
-              ]}
-            >
-              <ThemedText style={styles.markerDetailLabel}>
-                Incident alert
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.markerDetailValue,
-                  { color: isDarkMode ? "#fee2e2" : "#0f172a" },
-                ]}
-              >
-                {selectedCrimeDateLabel ?? "Recent report"}
-              </ThemedText>
-              <ThemedText style={styles.markerDetailMeta}>
-                {selectedCrimeDistanceLabel
-                  ? `${selectedCrimeDistanceLabel} from you`
-                  : "Tap marker to reposition the map"}
-              </ThemedText>
-            </View>
-          )}
-
-          {showWeatherSummary && (
-            <>
-              <View style={styles.weatherCardHeader}>
-                <View style={styles.weatherInfoGroup}>
-                  <View
-                    style={[
-                      styles.weatherHeaderText,
-                      { paddingRight: 4 },
-                    ]}
-                  >
-                    <ThemedText
-                      style={[
-                        styles.locationLabel,
-                        { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {areaWeatherSummary?.barangay ?? "Talayan"}
-                    </ThemedText>
-                    <ThemedText
-                      style={styles.temperatureLabel}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.8}
-                    >
-                      {weatherTemperatureLabel}
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.conditionLabel,
-                        { color: isDarkMode ? "#cbd5f5" : "#64748b" },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {weatherDescription}
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.weatherDetailLine,
-                        { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
-                      ]}
-                    >
-                      {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
-                    </ThemedText>
-                    <Pressable
-                      style={[
-                        styles.aiTriggerButton,
-                        {
-                          borderColor: isDarkMode ? "#94a3b8" : TealColors.primary,
-                          backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
-                        },
-                      ]}
-                    onPress={() => {
-                      if (!showAiSummary) {
-                        setShowAiSummary(true);
-                      } else {
-                        scrollToAIDescription();
-                      }
-                    }}
-                      accessibilityLabel="Scroll to AI weather summary"
-                    >
-                      <IconSymbol
-                        name="robot"
-                        size={20}
-                        color={isDarkMode ? "#e0f2fe" : TealColors.primary}
-                      />
-                    </Pressable>
-                  </View>
-                  <View style={styles.weatherStatsColumnRight}>
-                    <View style={styles.statRow}>
-                      <IconSymbol
-                        name="thermometer"
-                        size={16}
-                        color={TealColors.primary}
-                      />
-                      <View>
-                        <ThemedText
-                          style={[styles.statLabel, { color: statLabelColor }]}
-                        >
-                          Feels like
-                        </ThemedText>
-                        <ThemedText
-                          style={[styles.statValue, { color: statValueColor }]}
-                        >
-                          {feelsLikeLabel}
-                        </ThemedText>
-                      </View>
-                    </View>
-                    <View style={styles.statRow}>
-                      <IconSymbol
-                        name="cloud.rain"
-                        size={16}
-                        color={TealColors.primary}
-                      />
-                      <View>
-                        <ThemedText
-                          style={[styles.statLabel, { color: statLabelColor }]}
-                        >
-                          Precip
-                        </ThemedText>
-                        <ThemedText
-                          style={[styles.statValue, { color: statValueColor }]}
-                        >
-                          {precipitationLabel}
-                        </ThemedText>
-                      </View>
-                    </View>
-                    <View style={styles.statRow}>
-                      <IconSymbol
-                        name="drop"
-                        size={16}
-                        color={TealColors.primary}
-                      />
-                      <View>
-                        <ThemedText
-                          style={[styles.statLabel, { color: statLabelColor }]}
-                        >
-                          Humidity
-                        </ThemedText>
-                        <ThemedText
-                          style={[styles.statValue, { color: statValueColor }]}
-                        >
-                          {humidityLabel}
-                        </ThemedText>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-                <View
+                <ThemedText style={styles.markerDetailLabel}>
+                  Evacuation center
+                </ThemedText>
+                <ThemedText
                   style={[
-                    styles.weatherIconBackground,
-                    {
-                      backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6",
-                    },
+                    styles.markerDetailValue,
+                    { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
                   ]}
                 >
-                  <Image
-                    source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
-                    style={styles.weatherIconLarge}
-                    resizeMode="contain"
-                  />
-                </View>
-              </View>
-              <ScrollView
-                ref={aiSummaryScrollRef}
-                style={styles.aiScrollContainer}
-                contentContainerStyle={styles.aiScrollContent}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-              >
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.hourlyForecastListContent}
+                  {selectedMarkerData.data.name}
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.markerDetailMeta,
+                    { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                  ]}
                 >
-                  {horizontalForecast.length > 0 ? (
-                    horizontalForecast.map((slot) => (
-                      <View
-                        key={slot.date}
+                  {selectedMarkerData.data.district}
+                  {selectedEvacuationDistanceLabel
+                    ? ` • ${selectedEvacuationDistanceLabel} away`
+                    : ""}
+                </ThemedText>
+              </View>
+            )}
+
+            {selectedMarkerData?.type === "crime" && (
+              <View
+                style={[
+                  styles.markerDetailCard,
+                  {
+                    backgroundColor: isDarkMode ? "#3b0d0d" : "#fee2e2",
+                  },
+                ]}
+              >
+                <ThemedText style={styles.markerDetailLabel}>
+                  Incident alert
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.markerDetailValue,
+                    { color: isDarkMode ? "#fee2e2" : "#0f172a" },
+                  ]}
+                >
+                  {selectedCrimeDateLabel ?? "Recent report"}
+                </ThemedText>
+                <ThemedText style={styles.markerDetailMeta}>
+                  {selectedCrimeDistanceLabel
+                    ? `${selectedCrimeDistanceLabel} from you`
+                    : "Tap marker to reposition the map"}
+                </ThemedText>
+              </View>
+            )}
+
+            {showWeatherSummary && (
+              <>
+                <View style={styles.weatherCardHeader}>
+                  <View style={styles.weatherInfoGroup}>
+                    <View
+                      style={[
+                        styles.weatherHeaderText,
+                        { paddingRight: 4 },
+                      ]}
+                    >
+                      <ThemedText
                         style={[
-                          styles.hourlyForecastItem,
-                          {
-                            backgroundColor: isDarkMode
-                              ? "rgba(56, 189, 248, 0.15)"
-                              : "#f1f5f9",
-                            borderColor: isDarkMode
-                              ? "rgba(14, 165, 233, 0.3)"
-                              : "rgba(15, 23, 42, 0.08)",
-                            marginRight: 10,
-                          },
+                          styles.locationLabel,
+                          { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {areaWeatherSummary?.barangay ?? "Talayan"}
+                      </ThemedText>
+                      <ThemedText
+                        style={styles.temperatureLabel}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                      >
+                        {weatherTemperatureLabel}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.conditionLabel,
+                          { color: isDarkMode ? "#cbd5f5" : "#64748b" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {weatherDescription}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.weatherDetailLine,
+                          { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
                         ]}
                       >
-                        <ThemedText style={styles.hourlyTime}>
-                          {slot.label}
-                        </ThemedText>
-                        <Image
-                          source={slot.weatherIcon}
-                          style={styles.hourlyIcon}
-                          resizeMode="contain"
+                        {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
+                      </ThemedText>
+                      <Pressable
+                        style={[
+                          styles.aiTriggerButton,
+                          {
+                            borderColor: isDarkMode ? "#94a3b8" : TealColors.primary,
+                            backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                          },
+                        ]}
+                        onPress={() => {
+                          if (!showAiSummary) {
+                            setShowAiSummary(true);
+                          } else {
+                            scrollToAIDescription();
+                          }
+                        }}
+                        accessibilityLabel="Scroll to AI weather summary"
+                      >
+                        <IconSymbol
+                          name="robot"
+                          size={20}
+                          color={isDarkMode ? "#e0f2fe" : TealColors.primary}
                         />
-                        <ThemedText
-                          style={[
-                            styles.hourlyTemp,
-                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
-                          ]}
-                        >
-                          {slot.high}
-                          {degreeSymbol}
-                        </ThemedText>
+                      </Pressable>
+                    </View>
+                    <View style={styles.weatherStatsColumnRight}>
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="thermometer"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Feels like
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {feelsLikeLabel}
+                          </ThemedText>
+                        </View>
                       </View>
-                    ))
-                  ) : (
-                    <ThemedText style={styles.hourlyPlaceholder}>
-                      Forecast soon
-                    </ThemedText>
-                  )}
-                </ScrollView>
-                {showAiSummary && (
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="cloud.rain"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Precip
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {precipitationLabel}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="drop"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Humidity
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {humidityLabel}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
                   <View
                     style={[
-                      styles.aiBotCard,
+                      styles.weatherIconBackground,
                       {
-                        backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
-                        borderColor: isDarkMode
-                          ? "rgba(79, 70, 229, 0.35)"
-                          : "rgba(14, 165, 233, 0.35)",
+                        backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6",
                       },
                     ]}
                   >
+                    <Image
+                      source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
+                      style={styles.weatherIconLarge}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </View>
+                <ScrollView
+                  ref={aiSummaryScrollRef}
+                  style={styles.aiScrollContainer}
+                  contentContainerStyle={styles.aiScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.hourlyForecastListContent}
+                  >
+                    {horizontalForecast.length > 0 ? (
+                      horizontalForecast.map((slot) => (
+                        <View
+                          key={slot.date}
+                          style={[
+                            styles.hourlyForecastItem,
+                            {
+                              backgroundColor: isDarkMode
+                                ? "rgba(56, 189, 248, 0.15)"
+                                : "#f1f5f9",
+                              borderColor: isDarkMode
+                                ? "rgba(14, 165, 233, 0.3)"
+                                : "rgba(15, 23, 42, 0.08)",
+                              marginRight: 10,
+                            },
+                          ]}
+                        >
+                          <ThemedText style={styles.hourlyTime}>
+                            {slot.label}
+                          </ThemedText>
+                          <Image
+                            source={slot.weatherIcon}
+                            style={styles.hourlyIcon}
+                            resizeMode="contain"
+                          />
+                          <ThemedText
+                            style={[
+                              styles.hourlyTemp,
+                              { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                            ]}
+                          >
+                            {slot.high}
+                            {degreeSymbol}
+                          </ThemedText>
+                        </View>
+                      ))
+                    ) : (
+                      <ThemedText style={styles.hourlyPlaceholder}>
+                        Forecast soon
+                      </ThemedText>
+                    )}
+                  </ScrollView>
+                  {showAiSummary && (
                     <View
                       style={[
-                        styles.aiBotIconWrapper,
+                        styles.aiBotCard,
                         {
+                          backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
                           borderColor: isDarkMode
-                            ? "rgba(226, 232, 240, 0.25)"
-                            : "rgba(15, 23, 42, 0.2)",
-                          backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                            ? "rgba(79, 70, 229, 0.35)"
+                            : "rgba(14, 165, 233, 0.35)",
                         },
                       ]}
                     >
-                      <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                      <View
+                        style={[
+                          styles.aiBotIconWrapper,
+                          {
+                            borderColor: isDarkMode
+                              ? "rgba(226, 232, 240, 0.25)"
+                              : "rgba(15, 23, 42, 0.2)",
+                            backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                          },
+                        ]}
+                      >
+                        <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                      </View>
+                      <View style={styles.aiBotContent}>
+                        <ThemedText
+                          style={[
+                            styles.aiBotTitle,
+                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          ]}
+                        >
+                          AI Weather Bot
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.aiBotText,
+                            { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                          ]}
+                        >
+                          {aiTextToRender}
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.aiBotCaption,
+                            { color: isDarkMode ? "#94a3b8" : "#475569" },
+                          ]}
+                        >
+                          Tap the robot above to jump here.
+                        </ThemedText>
+                      </View>
                     </View>
-                    <View style={styles.aiBotContent}>
-                      <ThemedText
-                        style={[
-                          styles.aiBotTitle,
-                          { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
-                        ]}
-                      >
-                        AI Weather Bot
-                      </ThemedText>
-                      <ThemedText
-                        style={[
-                          styles.aiBotText,
-                          { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
-                        ]}
-                      >
-                        {aiTextToRender}
-                      </ThemedText>
-                      <ThemedText
-                        style={[
-                          styles.aiBotCaption,
-                          { color: isDarkMode ? "#94a3b8" : "#475569" },
-                        ]}
-                      >
-                        Tap the robot above to jump here.
-                      </ThemedText>
-                    </View>
-                  </View>
-                )}
-              </ScrollView>
-            </>
-          )}
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </ScrollView>
         </View>
       )}
     </ThemedView>
@@ -1312,8 +1407,8 @@ const styles = StyleSheet.create({
   },
   infoPanel: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
@@ -1323,6 +1418,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 6,
+    maxHeight: INFO_PANEL_MAX_HEIGHT,
+  },
+  infoContentScroll: {
+    marginTop: 10,
+  },
+  infoContentContainer: {
+    paddingBottom: 12,
+    gap: 10,
   },
   infoPanelHeader: {
     flexDirection: "row",
@@ -1343,8 +1446,8 @@ const styles = StyleSheet.create({
   weatherHeaderBackground: {
     borderRadius: 16,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 8,
+    paddingVertical: 4,
+    marginBottom: 6,
   },
   infoPanelSubtitle: {
     fontSize: 12,
@@ -1360,7 +1463,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   weatherInfoGroup: {
     flexDirection: "row",
@@ -1370,7 +1473,7 @@ const styles = StyleSheet.create({
   weatherHeaderText: {
     minWidth: 0,
     marginRight: 6,
-    marginTop: 6,
+    marginTop: 4,
   },
   locationLabel: {
     fontSize: 16,
