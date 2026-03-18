@@ -11,7 +11,18 @@ import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 const EMPTY_CRIME_DATA: never[] = [];
 
@@ -62,14 +73,15 @@ const WEATHER_REQUEST_TIMEOUT_MS = 12000;
 const WEATHER_REQUEST_RETRIES = 2;
 const OWM_ICON_BASE = "https://openweathermap.org/img/wn";
 const INFO_PANEL_MAX_HEIGHT = Dimensions.get("window").height * 0.42;
-const FALLBACK_CONDITIONS: Array<{
+const FALLBACK_CONDITIONS: {
   label: string;
   icon: any;
+  owmIcon: string;
   temp: number;
   feelsLike: number;
   humidity: number;
   precipitationChance: number;
-}> = [
+}[] = [
   {
     label: "Clear Sky",
     icon: WeatherIcons.sunny,
@@ -317,6 +329,8 @@ export default function SafetyMapScreen() {
   const [showAiSummary, setShowAiSummary] = useState(false);
   const [aiTypewriterText, setAiTypewriterText] = useState("");
   const aiSummaryScrollRef = useRef<ScrollView>(null);
+  const scrollHintAnim = useRef(new Animated.Value(0)).current;
+  const [showHourlyHint, setShowHourlyHint] = useState(true);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
   const [infoPanelHeight, setInfoPanelHeight] = useState(0);
   const quickActionsDynamicStyle = useMemo(
@@ -509,6 +523,43 @@ export default function SafetyMapScreen() {
   }, [showAiSummary, weatherAIMessage]);
   const aiTypewriterPlaceholder = "AI Weather Bot is preparing your briefing…";
   const aiTextToRender = aiTypewriterText || aiTypewriterPlaceholder;
+  const hourlyTimeLabels = useMemo(
+    () => ["11:00 AM", "02:00 PM", "05:00 PM", "08:00 PM"],
+    []
+  );
+  const degreeSymbol = "\u00B0";
+  const horizontalForecast = useMemo(() => {
+    if (!Array.isArray(weeklyForecast)) return [];
+    return weeklyForecast.slice(0, 4).map((day, index) => ({
+      ...day,
+      label: hourlyTimeLabels[index] ?? day.label,
+    }));
+  }, [weeklyForecast, hourlyTimeLabels]);
+  const hasHourlyForecast = horizontalForecast.length > 0;
+
+  useEffect(() => {
+    setShowHourlyHint(hasHourlyForecast && horizontalForecast.length > 1);
+  }, [horizontalForecast.length, hasHourlyForecast]);
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollHintAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrollHintAnim, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scrollHintAnim]);
 
   const weatherDescription =
     areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
@@ -517,19 +568,6 @@ export default function SafetyMapScreen() {
     areaWeatherSummary?.forecastTimeLabel
       ? `Forecast slot: ${areaWeatherSummary.forecastTimeLabel}`
       : "Weather updates every 10 minutes.";
-  const hourlyTimeLabels = useMemo(
-    () => ["11:00 AM", "02:00 PM", "05:00 PM", "08:00 PM"],
-    []
-  );
-  const degreeSymbol = "\u00B0";
-  const horizontalForecast = useMemo(
-    () =>
-      weeklyForecast.slice(0, 4).map((day, index) => ({
-        ...day,
-        label: hourlyTimeLabels[index] ?? day.label,
-      })),
-    [weeklyForecast, hourlyTimeLabels]
-  );
 
   // Fetch user location on mount
   useEffect(() => {
@@ -1058,9 +1096,9 @@ export default function SafetyMapScreen() {
                         }}
                         accessibilityLabel="Scroll to AI weather summary"
                       >
-                        <IconSymbol
+                        <MaterialCommunityIcons
                           name="robot"
-                          size={20}
+                          size={24}
                           color={isDarkMode ? "#e0f2fe" : TealColors.primary}
                         />
                       </Pressable>
@@ -1147,53 +1185,96 @@ export default function SafetyMapScreen() {
                   showsVerticalScrollIndicator={false}
                   nestedScrollEnabled
                 >
+                <View style={styles.hourlyScrollWrapper}>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.hourlyForecastListContent}
+                    onScroll={({ nativeEvent }) => {
+                      const { contentOffset, layoutMeasurement, contentSize } = nativeEvent;
+                      const visibleEnd = contentOffset.x + layoutMeasurement.width;
+                      const atEnd = visibleEnd >= contentSize.width - 4; // small buffer
+                      setShowHourlyHint(!atEnd && horizontalForecast.length > 1);
+                    }}
+                    onMomentumScrollEnd={({ nativeEvent }) => {
+                      const { contentOffset, layoutMeasurement, contentSize } = nativeEvent;
+                      const visibleEnd = contentOffset.x + layoutMeasurement.width;
+                      const atEnd = visibleEnd >= contentSize.width - 4;
+                      setShowHourlyHint(!atEnd && horizontalForecast.length > 1);
+                    }}
+                    onScrollBeginDrag={() => {
+                      if (horizontalForecast.length > 1) setShowHourlyHint(true);
+                    }}
+                    scrollEventThrottle={16}
                   >
-                    {horizontalForecast.length > 0 ? (
+                    {hasHourlyForecast ? (
                       horizontalForecast.map((slot) => (
-                        <View
-                          key={slot.date}
+                      <View
+                        key={slot.date}
+                        style={[
+                          styles.hourlyForecastItem,
+                          {
+                            backgroundColor: isDarkMode
+                              ? "rgba(56, 189, 248, 0.15)"
+                              : "#f1f5f9",
+                            borderColor: isDarkMode
+                              ? "rgba(14, 165, 233, 0.3)"
+                              : "rgba(15, 23, 42, 0.08)",
+                            marginRight: 10,
+                          },
+                        ]}
+                      >
+                        <ThemedText style={styles.hourlyTime}>
+                          {slot.label}
+                        </ThemedText>
+                        <Image
+                          source={slot.weatherIcon}
+                          style={styles.hourlyIcon}
+                          resizeMode="contain"
+                        />
+                        <ThemedText
                           style={[
-                            styles.hourlyForecastItem,
-                            {
-                              backgroundColor: isDarkMode
-                                ? "rgba(56, 189, 248, 0.15)"
-                                : "#f1f5f9",
-                              borderColor: isDarkMode
-                                ? "rgba(14, 165, 233, 0.3)"
-                                : "rgba(15, 23, 42, 0.08)",
-                              marginRight: 10,
-                            },
+                            styles.hourlyTemp,
+                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
                           ]}
                         >
-                          <ThemedText style={styles.hourlyTime}>
-                            {slot.label}
-                          </ThemedText>
-                          <Image
-                            source={slot.weatherIcon}
-                            style={styles.hourlyIcon}
-                            resizeMode="contain"
-                          />
-                          <ThemedText
-                            style={[
-                              styles.hourlyTemp,
-                              { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
-                            ]}
-                          >
-                            {slot.high}
-                            {degreeSymbol}
-                          </ThemedText>
-                        </View>
-                      ))
-                    ) : (
-                      <ThemedText style={styles.hourlyPlaceholder}>
-                        Forecast soon
-                      </ThemedText>
-                    )}
-                  </ScrollView>
+                          {slot.high}
+                          {degreeSymbol}
+                        </ThemedText>
+                      </View>
+                    ))
+                  ) : (
+                    <ThemedText style={styles.hourlyPlaceholder}>
+                      Forecast soon
+                    </ThemedText>
+                  )}
+                </ScrollView>
+                  {showHourlyHint && hasHourlyForecast && (
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.hourlyScrollHintText,
+                        {
+                          color: isDarkMode ? "#cbd5f5" : "#475569",
+                          opacity: scrollHintAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.35, 1],
+                          }),
+                          transform: [
+                            {
+                              translateX: scrollHintAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 6],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {">>>"}
+                    </Animated.Text>
+                  )}
+                </View>
                   {showAiSummary && (
                     <View
                       style={[
@@ -1206,18 +1287,22 @@ export default function SafetyMapScreen() {
                         },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.aiBotIconWrapper,
-                          {
-                            borderColor: isDarkMode
+                    <View
+                      style={[
+                        styles.aiBotIconWrapper,
+                        {
+                          borderColor: isDarkMode
                               ? "rgba(226, 232, 240, 0.25)"
                               : "rgba(15, 23, 42, 0.2)",
                             backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
                           },
                         ]}
                       >
-                        <IconSymbol name="robot" size={26} color={TealColors.primary} />
+                        <MaterialCommunityIcons
+                          name="robot"
+                          size={26}
+                          color={TealColors.primary}
+                        />
                       </View>
                       <View style={styles.aiBotContent}>
                         <ThemedText
@@ -1543,10 +1628,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   aiScrollContainer: {
-    marginTop: 12,
+    marginTop: 6,
   },
   aiScrollContent: {
     paddingBottom: 8,
+  },
+  hourlyScrollWrapper: {
+    position: "relative",
+  },
+  hourlyScrollHintText: {
+    position: "absolute",
+    top: "40%",
+    transform: [{ translateY: -9 }],
+    right: 6,
+    fontSize: 20,
+    fontWeight: "700",
   },
   aiBotCard: {
     flexDirection: "row",
@@ -1558,8 +1654,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   aiBotIconWrapper: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
