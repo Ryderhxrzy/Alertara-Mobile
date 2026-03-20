@@ -210,11 +210,15 @@ const NotificationCard = ({
   cardBackground,
   textColor,
   compactMode,
+  isDarkMode,
+  highlightColor,
 }: {
   alert: NotificationItem;
   cardBackground: string;
   textColor: string;
   compactMode: boolean;
+  isDarkMode: boolean;
+  highlightColor: string;
 }) => {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -246,7 +250,13 @@ const NotificationCard = ({
   if (compactMode) {
     return (
       <Pressable
-        style={[styles.compactCard, { borderColor: severityColor }]}
+        style={[
+          styles.compactCard,
+          {
+            borderColor: isDarkMode ? "#334155" : severityColor,
+            backgroundColor: isDarkMode ? "#1f2933" : cardBackground,
+          },
+        ]}
         onPress={() =>
           router.push({
             pathname: "/chat/[id]",
@@ -263,7 +273,7 @@ const NotificationCard = ({
             <ThemedText style={[styles.compactTitle, { color: textColor }]} numberOfLines={1}>
               {alert.title}
             </ThemedText>
-            <ThemedText style={styles.compactMeta} numberOfLines={1}>
+            <ThemedText style={[styles.compactMeta, { color: isDarkMode ? "#cbd5e1" : "#475569" }]} numberOfLines={1}>
               {alert.category} · {alert.severity} · {alert.timestamp}
             </ThemedText>
           </View>
@@ -348,8 +358,12 @@ const NotificationCard = ({
           style={({ pressed }) => [
             styles.smallChatbotButton,
             {
-              borderColor: "#16a34a",
-              backgroundColor: pressed ? "rgba(22, 163, 74, 0.15)" : "rgba(22, 163, 74, 0.12)",
+              borderColor: highlightColor,
+              backgroundColor: pressed
+                ? `${highlightColor}22`
+                : isDarkMode
+                  ? "rgba(255,255,255,0.06)"
+                  : `${highlightColor}15`,
             },
           ]}
         onPress={() =>
@@ -364,8 +378,8 @@ const NotificationCard = ({
         }
         accessibilityLabel={`Open chatbot for ${alert.title}`}
       >
-        <MaterialCommunityIcons name="robot" size={16} color="#16a34a" />
-        <ThemedText style={[styles.smallChatbotLabel, { color: "#166534" }]}>
+        <MaterialCommunityIcons name="robot" size={16} color={highlightColor} />
+        <ThemedText style={[styles.smallChatbotLabel, { color: highlightColor }]}>
           Chatbot
         </ThemedText>
       </Pressable>
@@ -673,6 +687,8 @@ export default function NotificationScreen() {
             cardBackground={cardBackground}
             textColor={textColor}
             compactMode={compactMode}
+            isDarkMode={isDarkMode}
+            highlightColor={highlightColor}
           />
         ))}
       </ScrollView>
