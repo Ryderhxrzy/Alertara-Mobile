@@ -81,6 +81,20 @@ function RootLayoutNav() {
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="notification"
+            options={{
+              presentation: "card",
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="chat/[id]"
+            options={{
+              presentation: "card",
+              headerShown: false,
+            }}
+          />
         </Stack.Group>
       </Stack>
       <StatusBar style="auto" />

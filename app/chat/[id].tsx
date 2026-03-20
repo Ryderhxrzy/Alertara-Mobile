@@ -1,4 +1,3 @@
-import { Header } from "@/components/header";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -14,7 +13,9 @@ import {
   StyleSheet,
   TextInput,
   View,
+  SafeAreaView,
 } from "react-native";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 
 type ChatMessage = {
   id: string;
@@ -110,29 +111,60 @@ export default function ChatScreen() {
   const screenBg = isDarkMode ? Colors.dark.background : Colors.light.background;
   const cardBg = isDarkMode ? "#1c2830" : "#ffffff";
   const textColor = isDarkMode ? Colors.dark.text : Colors.light.text;
+  const bubbleBot = "rgba(46, 125, 95, 0.12)";
+  const bubbleUser = TealColors.primary;
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: screenBg }]}>
-      <SafeHeader onBack={() => router.back()} />
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <IconSymbol name="robot" size={24} color={TealColors.primary} />
-          <View style={{ flex: 1 }}>
-            <ThemedText style={[styles.title, { color: textColor }]} numberOfLines={1}>
-              {alertTitle}
-            </ThemedText>
-            {category && (
-              <ThemedText style={styles.subtitle} numberOfLines={1}>
-                {decodeURIComponent(category)} · AI Assistant
-              </ThemedText>
-            )}
-          </View>
+      <SafeAreaView>
+        <View style={styles.hero}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <IconSymbol name="arrow.left" size={18} color="#ffffff" />
+        </Pressable>
+        <View style={styles.avatar}>
+          <MaterialCommunityIcons name="robot" size={26} color="#0f172a" />
         </View>
+        <View style={{ flex: 1 }}>
+          <ThemedText style={styles.heroTitle} numberOfLines={1}>
+            {alertTitle}
+          </ThemedText>
+          <ThemedText style={styles.heroSubtitle} numberOfLines={1}>
+            {(category ? decodeURIComponent(category) : "General") + " · AI Assistant"}
+          </ThemedText>
+        </View>
+        <IconSymbol name="ellipsis" size={18} color="#e0f2f1" />
+      </View>
+      </SafeAreaView>
+
+      <View style={[styles.threadCard, { backgroundColor: cardBg }]}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.threadContent}>
+          {messages.map((m) => (
+            <View
+              key={m.id}
+              style={[
+                styles.bubble,
+                m.from === "user"
+                  ? [styles.userBubble, { backgroundColor: bubbleUser }]
+                  : [styles.botBubble, { backgroundColor: bubbleBot }]
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.bubbleText,
+                  { color: m.from === "user" ? "#ffffff" : textColor },
+                ]}
+              >
+                {m.text}
+              </ThemedText>
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.promptsScroller}
         contentContainerStyle={styles.promptsRow}
       >
         {promptChips.map((chip) => (
@@ -152,29 +184,6 @@ export default function ChatScreen() {
         ))}
       </ScrollView>
 
-      <View style={[styles.threadCard, { backgroundColor: cardBg }]}>
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.threadContent}>
-          {messages.map((m) => (
-            <View
-              key={m.id}
-              style={[
-                styles.bubble,
-                m.from === "user" ? styles.userBubble : styles.botBubble,
-              ]}
-            >
-              <ThemedText
-                style={[
-                  styles.bubbleText,
-                  { color: m.from === "user" ? "#ffffff" : textColor },
-                ]}
-              >
-                {m.text}
-              </ThemedText>
-            </View>
-          ))}
-        </ScrollView>
-      </View>
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
@@ -188,6 +197,11 @@ export default function ChatScreen() {
             style={[styles.input, { color: textColor }]}
             multiline
           />
+          <View style={styles.composerIcons}>
+            <Ionicons name="attach" size={18} color="#6b7280" />
+            <Ionicons name="camera" size={18} color="#6b7280" />
+            <Ionicons name="mic" size={18} color="#6b7280" />
+          </View>
           <Pressable
             style={[
               styles.sendBtn,
@@ -216,49 +230,75 @@ function SafeHeader({ onBack }: { onBack: () => void }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: {
+  hero: {
+    backgroundColor: TealColors.primary,
     paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  headerLeft: {
+    paddingTop: 60,
+    paddingBottom: 8,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
     flexDirection: "row",
-    gap: 10,
     alignItems: "center",
+    gap: 12,
   },
-  title: {
-    fontSize: 18,
+  backBtn: {
+    padding: 6,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 10,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#e0f2f1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroTitle: {
+    fontSize: 17,
     fontWeight: "700",
+    color: "#ffffff",
   },
-  subtitle: {
+  heroSubtitle: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#e0f2f1",
     marginTop: 2,
+  },
+  promptsScroller: {
+    maxHeight: 36,
   },
   promptsRow: {
     paddingHorizontal: 12,
-    paddingBottom: 10,
-    gap: 8,
+    paddingTop: 0,
+    paddingBottom: 0,
+    gap: 6,
+    alignItems: "center",
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 1,
+    borderRadius: 10,
     borderWidth: 1,
+    minHeight: 22,
+    justifyContent: "center",
   },
   chipText: {
-    fontSize: 13,
+    fontSize: 11,
+    lineHeight: 12,
     fontWeight: "600",
     color: TealColors.primary,
   },
   threadCard: {
+    marginTop: 15,
     flex: 1,
     marginHorizontal: 12,
     marginBottom: 12,
-    borderRadius: 16,
-    padding: 12,
+    padding: 1,
+    minHeight: 260,
   },
   threadContent: {
     gap: 10,
+    paddingVertical: 4,
   },
   bubble: {
     maxWidth: "80%",
@@ -268,11 +308,9 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     alignSelf: "flex-end",
-    backgroundColor: TealColors.primary,
   },
   botBubble: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(148, 163, 184, 0.25)",
   },
   bubbleText: {
     fontSize: 14,
@@ -287,19 +325,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  composerIcons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   input: {
     flex: 1,
     fontSize: 14,
-    minHeight: 36,
-    maxHeight: 120,
+    minHeight: 38,
+    maxHeight: 110,
   },
   sendBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     borderWidth: 1,
     backgroundColor: "#ffffff",
   },
