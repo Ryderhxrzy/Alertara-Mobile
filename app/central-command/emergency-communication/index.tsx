@@ -7,12 +7,12 @@ import { useRouter } from "expo-router";
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from "react-native";
 
 const modules = [
-  { title: "Mass Notification", icon: "antenna.radiowaves.left.and.right", route: "/central-command/ecs/mass-notification", desc: "Create and send alerts across SMS, Email, PA." },
-  { title: "Alert Catalog", icon: "tray.full", route: "/central-command/ecs/alert-catalog", desc: "Reusable alert templates and categorizations." },
-  { title: "Two-Way Feedback", icon: "bubble.left.and.bubble.right", route: "/central-command/ecs/citizen-feedback", desc: "Collect acknowledgements and citizen status." },
-  { title: "Language Support", icon: "globe", route: "/central-command/ecs/language-support", desc: "Manage translations and multilingual delivery." },
-  { title: "Subscriptions", icon: "person.crop.circle.badge.checkmark", route: "/central-command/ecs/subscriptions", desc: "Opt-ins, channels, and preferences." },
-  { title: "Audit Log", icon: "doc.text.magnifyingglass", route: "/central-command/ecs/audit-log", desc: "Delivery history, status, and accountability." },
+  { title: "Mass Notification", icon: "antenna.radiowaves.left.and.right", route: "/central-command/emergency-communication/mass-notification", desc: "Create and send alerts across SMS, Email, PA." },
+  { title: "Alert Catalog", icon: "tray.full", route: "/central-command/emergency-communication/alert-catalog", desc: "Reusable alert templates and categorizations." },
+  { title: "Two-Way Feedback", icon: "bubble.left.and.bubble.right", route: "/central-command/emergency-communication/citizen-feedback", desc: "Collect acknowledgements and citizen status." },
+  { title: "Language Support", icon: "globe", route: "/central-command/emergency-communication/language-support", desc: "Manage translations and multilingual delivery." },
+  { title: "Subscriptions", icon: "person.crop.circle.badge.checkmark", route: "/central-command/emergency-communication/subscriptions", desc: "Opt-ins, channels, and preferences." },
+  { title: "Audit Log", icon: "doc.text.magnifyingglass", route: "/central-command/emergency-communication/audit-log", desc: "Delivery history, status, and accountability." },
 ];
 
 export default function EcsHome() {

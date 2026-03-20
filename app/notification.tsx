@@ -1,9 +1,22 @@
-import { ThemedText } from '@/components/themed-text';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useTheme } from '@/context/theme-context';
-import { Animated, Easing, LayoutAnimation, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, TextInput, UIManager, View } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import { ThemedText } from "@/components/themed-text";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Colors } from "@/constants/theme";
+import { useTheme } from "@/context/theme-context";
+import { useRouter } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  UIManager,
+  View,
+} from "react-native";
+import { useEffect, useRef, useState } from "react";
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -192,7 +205,16 @@ const categoryTabs = [
 ];
 const timeFilters = ['Now', 'Yesterday', 'A Week Ago', 'A Month Ago', 'A Year Ago'];
 
-const NotificationCard = ({ alert, cardBackground, textColor }: { alert: NotificationItem; cardBackground: string; textColor: string }) => {
+const NotificationCard = ({
+  alert,
+  cardBackground,
+  textColor,
+}: {
+  alert: NotificationItem;
+  cardBackground: string;
+  textColor: string;
+}) => {
+  const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const expandAnim = useRef(new Animated.Value(0)).current;
@@ -282,12 +304,39 @@ const NotificationCard = ({ alert, cardBackground, textColor }: { alert: Notific
       </Animated.View>
 
       <View style={[styles.footerRow, { marginTop: 12 }]}>
-        <ThemedText style={[styles.timestamp, { color: textColor }]}>
-          Timestamp: {alert.timestamp}
+        <View style={{ flex: 1 }}>
+          <ThemedText style={[styles.timestamp, { color: textColor }]}>
+            Timestamp: {alert.timestamp}
+          </ThemedText>
+          <ThemedText style={[styles.source, { color: textColor }]}>
+            Source: {alert.source}
+          </ThemedText>
+        </View>
+        <Pressable
+          style={({ pressed }) => [
+            styles.smallChatbotButton,
+            {
+              borderColor: "#16a34a",
+              backgroundColor: pressed ? "rgba(22, 163, 74, 0.15)" : "rgba(22, 163, 74, 0.12)",
+            },
+          ]}
+        onPress={() =>
+          router.push({
+            pathname: "/chat/[id]",
+            params: {
+              id: alert.id,
+              title: alert.title,
+              category: alert.category,
+            },
+          } as never)
+        }
+        accessibilityLabel={`Open chatbot for ${alert.title}`}
+      >
+        <MaterialCommunityIcons name="robot" size={16} color="#16a34a" />
+        <ThemedText style={[styles.smallChatbotLabel, { color: "#166534" }]}>
+          Chatbot
         </ThemedText>
-        <ThemedText style={[styles.source, { color: textColor }]}>
-          Source: {alert.source}
-        </ThemedText>
+      </Pressable>
       </View>
 
       <Pressable style={[styles.primaryButton, { borderColor: severityColor }]}>
@@ -384,11 +433,11 @@ export default function NotificationScreen() {
             <ThemedText type="title" style={[styles.headerTitle, { color: textColor }]}>
               Notifications
             </ThemedText>
-            <View style={styles.headerActions}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  {
+          <View style={styles.headerActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconButton,
+                {
                     backgroundColor: pressed
                       ? '#d9e5e1'
                       : isDarkMode
@@ -421,6 +470,31 @@ export default function NotificationScreen() {
                 }}
               >
                 <IconSymbol name="filter" size={20} color={highlightColor} />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  styles.iconSpacing,
+                  {
+                    backgroundColor: pressed
+                      ? "#d9e5e1"
+                      : isDarkMode
+                        ? "#1f2d31"
+                        : "#ffffff",
+                  },
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/chat/[id]",
+                    params: {
+                      id: "general",
+                      title: "General Inquiry",
+                      category: "General",
+                    },
+                  } as never)
+                }
+              >
+                <IconSymbol name="questionmark.circle" size={20} color={highlightColor} />
               </Pressable>
             </View>
           </View>
@@ -740,6 +814,9 @@ const styles = StyleSheet.create({
   },
   footerRow: {
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   timestamp: {
     fontSize: 12,
@@ -757,6 +834,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 14,
+    fontWeight: '700',
+  },
+  smallChatbotButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  smallChatbotLabel: {
+    fontSize: 12,
     fontWeight: '700',
   },
   expandedContent: {

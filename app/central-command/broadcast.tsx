@@ -6,7 +6,7 @@ import { View } from "react-native";
 export default function BroadcastRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/central-command/ecs");
+    router.replace("/central-command/emergency-communication");
   }, [router]);
   return <View />;
 }
