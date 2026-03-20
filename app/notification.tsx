@@ -3,7 +3,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { useRouter } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, FontAwesome } from "@expo/vector-icons";
 import {
   Animated,
   Easing,
@@ -209,10 +209,12 @@ const NotificationCard = ({
   alert,
   cardBackground,
   textColor,
+  compactMode,
 }: {
   alert: NotificationItem;
   cardBackground: string;
   textColor: string;
+  compactMode: boolean;
 }) => {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -240,6 +242,36 @@ const NotificationCard = ({
     inputRange: [0, 0.5, 1],
     outputRange: [0, 0, 1],
   });
+
+  if (compactMode) {
+    return (
+      <Pressable
+        style={[styles.compactCard, { borderColor: severityColor }]}
+        onPress={() =>
+          router.push({
+            pathname: "/chat/[id]",
+            params: { id: alert.id, title: alert.title, category: alert.category },
+          } as never)
+        }
+        accessibilityLabel={`Open chatbot for ${alert.title}`}
+      >
+        <View style={styles.compactLeft}>
+          <View style={[styles.compactIconWrap, { backgroundColor: `${severityColor}1a` }]}>
+            <IconSymbol name={alert.icon} size={16} color={severityColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.compactTitle, { color: textColor }]} numberOfLines={1}>
+              {alert.title}
+            </ThemedText>
+            <ThemedText style={styles.compactMeta} numberOfLines={1}>
+              {alert.category} · {alert.severity} · {alert.timestamp}
+            </ThemedText>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={18} color={severityColor} />
+      </Pressable>
+    );
+  }
 
   return (
     <Pressable style={[styles.card, { backgroundColor: cardBackground }]} onPress={toggleExpand}>
@@ -356,6 +388,7 @@ const NotificationCard = ({
 
 export default function NotificationScreen() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   const screenBackground = isDarkMode ? '#0f1c1f' : '#f2efe8';
   const cardBackground = isDarkMode ? '#18252a' : '#ffffff';
   const textColor = isDarkMode ? Colors.dark.text : Colors.light.text;
@@ -365,6 +398,7 @@ export default function NotificationScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
   const [menuMounted, setMenuMounted] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const [compactMode, setCompactMode] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchMounted, setSearchMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -469,7 +503,7 @@ export default function NotificationScreen() {
                   setFilterVisible(prev => !prev);
                 }}
               >
-                <IconSymbol name="filter" size={20} color={highlightColor} />
+                <FontAwesome name="filter" size={20} color={highlightColor} />
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -483,18 +517,13 @@ export default function NotificationScreen() {
                         : "#ffffff",
                   },
                 ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/chat/[id]",
-                    params: {
-                      id: "general",
-                      title: "General Inquiry",
-                      category: "General",
-                    },
-                  } as never)
-                }
+                onPress={() => setCompactMode((prev) => !prev)}
               >
-                <IconSymbol name="questionmark.circle" size={20} color={highlightColor} />
+                <MaterialCommunityIcons
+                  name={compactMode ? "view-agenda" : "view-list"}
+                  size={20}
+                  color={highlightColor}
+                />
               </Pressable>
             </View>
           </View>
@@ -615,7 +644,13 @@ export default function NotificationScreen() {
         </View>
 
         {currentNotifications.map(alert => (
-          <NotificationCard key={alert.id} alert={alert} cardBackground={cardBackground} textColor={textColor} />
+          <NotificationCard
+            key={alert.id}
+            alert={alert}
+            cardBackground={cardBackground}
+            textColor={textColor}
+            compactMode={compactMode}
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -737,14 +772,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   card: {
-    borderRadius: 22,
+    borderRadius: 18,
     padding: 18,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    marginBottom: 18,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -848,6 +886,44 @@ const styles = StyleSheet.create({
   smallChatbotLabel: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  compactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#ffffff',
+    marginBottom: 10,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  compactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  compactIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  compactMeta: {
+    fontSize: 11,
+    color: '#6b7280',
   },
   expandedContent: {
     marginTop: 8,
