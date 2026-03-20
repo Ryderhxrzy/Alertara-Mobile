@@ -464,9 +464,26 @@ export default function NotificationScreen() {
       >
         <View style={styles.headerStack}>
           <View style={styles.headerRow}>
-            <ThemedText type="title" style={[styles.headerTitle, { color: textColor }]}>
-              Notifications
-            </ThemedText>
+            <View style={styles.headerLeft}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.backButton,
+                  {
+                    backgroundColor: pressed
+                      ? '#d9e5e1'
+                      : isDarkMode
+                        ? '#1f2d31'
+                        : '#ffffff',
+                  },
+                ]}
+                onPress={() => router.back()}
+              >
+                <IconSymbol name="arrow.left" size={18} color={highlightColor} />
+              </Pressable>
+              <ThemedText type="title" style={[styles.headerTitle, { color: textColor }]}>
+                Notifications
+              </ThemedText>
+            </View>
           <View style={styles.headerActions}>
             <Pressable
               style={({ pressed }) => [
@@ -504,26 +521,6 @@ export default function NotificationScreen() {
                 }}
               >
                 <FontAwesome name="filter" size={20} color={highlightColor} />
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  styles.iconSpacing,
-                  {
-                    backgroundColor: pressed
-                      ? "#d9e5e1"
-                      : isDarkMode
-                        ? "#1f2d31"
-                        : "#ffffff",
-                  },
-                ]}
-                onPress={() => setCompactMode((prev) => !prev)}
-              >
-                <MaterialCommunityIcons
-                  name={compactMode ? "view-agenda" : "view-list"}
-                  size={20}
-                  color={highlightColor}
-                />
               </Pressable>
             </View>
           </View>
@@ -611,11 +608,11 @@ export default function NotificationScreen() {
               ]}
             >
               {timeFilters.map(option => (
-                <Pressable
-                  key={`menu-${option}`}
-                  style={[
-                    styles.filterOption,
-                    {
+              <Pressable
+                key={`menu-${option}`}
+                style={[
+                  styles.filterOption,
+                  {
                       borderColor: isDarkMode ? '#2f3b42' : '#c1c5cc',
                     },
                     selectedTimeFilter === option && {
@@ -639,6 +636,32 @@ export default function NotificationScreen() {
                   </ThemedText>
                 </Pressable>
               ))}
+              <View style={styles.filterToggleRow}>
+                <ThemedText style={[styles.filterOptionText, { color: overlayTextColor }]}>
+                  Compact list mode
+                </ThemedText>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.compactToggle,
+                    {
+                      backgroundColor: compactMode
+                        ? `${highlightColor}30`
+                        : isDarkMode
+                          ? "#1f2d31"
+                          : "#f2f4f7",
+                      borderColor: compactMode ? highlightColor : "#cbd5e1",
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                  onPress={() => setCompactMode((prev) => !prev)}
+                >
+                  <MaterialCommunityIcons
+                    name={compactMode ? "view-agenda" : "view-list"}
+                    size={18}
+                    color={compactMode ? highlightColor : "#475569"}
+                  />
+                </Pressable>
+              </View>
             </Animated.View>
           )}
         </View>
@@ -680,9 +703,20 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.6)',
   },
   iconButton: {
     width: 42,
@@ -770,6 +804,18 @@ const styles = StyleSheet.create({
   },
   filterOptionText: {
     fontSize: 13,
+  },
+  filterToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  compactToggle: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   card: {
     borderRadius: 18,
