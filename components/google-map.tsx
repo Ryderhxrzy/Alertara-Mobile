@@ -66,7 +66,8 @@ function GoogleMapComponent({
   onMarkerPress,
   focusTarget,
 }: GoogleMapProps) {
-  const mapRef = useRef<MapView>(null);
+  // Use loose typing because the clustering wrapper doesn't expose the full MapView instance type
+  const mapRef = useRef<any>(null);
 
   const weatherPinColor = useCallback((label: string) => {
     const text = label.toLowerCase();
@@ -102,7 +103,7 @@ function GoogleMapComponent({
 
   const handleMapReady = useCallback(() => {
     if (coordinates.length > 0) {
-      mapRef.current?.fitToCoordinates(coordinates, {
+      mapRef.current?.fitToCoordinates?.(coordinates, {
         edgePadding: { top: 60, right: 40, bottom: 60, left: 40 },
         animated: false,
       });
@@ -114,7 +115,7 @@ function GoogleMapComponent({
   useEffect(() => {
     if (!focusTarget || !mapRef.current) return;
 
-    mapRef.current.animateToRegion(
+    mapRef.current?.animateToRegion?.(
       {
         latitude: focusTarget.latitude,
         longitude: focusTarget.longitude,
@@ -132,6 +133,7 @@ function GoogleMapComponent({
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={INITIAL_REGION}
+        mapType="satellite"
         clusteringEnabled={clusteringEnabled}
         onMapReady={handleMapReady}
         onPress={onMapPress}
@@ -234,21 +236,21 @@ function GoogleMapComponent({
               // @ts-expect-error cluster prop comes from react-native-map-clustering
               cluster={false}
               onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
-              tracksViewChanges={true}
-            >
-              {markerIconSource ? (
-                <Image
-                  source={markerIconSource}
-                  style={styles.weatherMarkerIcon}
-                  resizeMode="contain"
-                />
-              ) : (
-                <IconSymbol
-                  name="cloud-outline"
-                  size={32}
-                  color={weatherPinColor(weather.weatherLabel)}
-                />
-              )}
+            tracksViewChanges={true}
+          >
+            {markerIconSource ? (
+              <Image
+                source={markerIconSource}
+                style={styles.weatherMarkerIcon}
+                resizeMode="contain"
+              />
+            ) : (
+              <IconSymbol
+                name="cloud-outline"
+                size={28}
+                color={weatherPinColor(weather.weatherLabel)}
+              />
+            )}
             </Marker>
           );
         })}
@@ -325,8 +327,24 @@ const styles = StyleSheet.create({
     borderColor: "#ffffff",
   },
   weatherMarkerIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+  },
+  weatherBadge: {
+    minWidth: 40,
+    minHeight: 40,
+    borderRadius: 12,
+    padding: 6,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.2)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    elevation: 4,
   },
 });
 
