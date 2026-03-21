@@ -147,6 +147,7 @@ function GoogleMapComponent({
         toolbarEnabled={false}
         showsCompass={false}
         zoomControlEnabled={false}
+        showsUserLocation
         // clustering props
         clusterColor="#EA580C"
         clusterTextColor="#ffffff"

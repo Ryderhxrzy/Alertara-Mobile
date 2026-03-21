@@ -156,6 +156,22 @@ function owmCodeToIcon(code: number | null | undefined): any {
   return WeatherIcons.default;
 }
 
+function openMeteoCodeToLabel(code: number | null | undefined): string {
+  if (code === null || code === undefined) return "Unavailable";
+  if (code === 0) return "Clear Sky";
+  if (code === 1 || code === 2) return "Mainly Clear";
+  if (code === 3) return "Overcast";
+  if (code === 45 || code === 48) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if (code >= 61 && code <= 67) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Rain Showers";
+  if (code >= 85 && code <= 86) return "Snow Showers";
+  if (code === 95) return "Thunderstorm";
+  if (code === 96 || code === 99) return "Thunderstorm w/ Hail";
+  return "Unknown";
+}
+
 function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): WeatherMarkerData {
   return {
     id: point.id,
@@ -172,6 +188,89 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     humidity: null,
     precipitationChance: null,
   };
+}
+
+async function fetchWeatherForCoords(
+  latitude: number,
+  longitude: number,
+  label: string
+): Promise<WeatherMarkerData | null> {
+  // Try OpenWeatherMap if available
+  if (OWM_API_KEY) {
+    try {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=metric&appid=${OWM_API_KEY}`;
+      const data = await fetchForecastWithRetry(url, label);
+      const nearestSlot = pickNearestForecastSlot(data?.list);
+      const weeklyData = compileWeeklyForecast(data?.list);
+      const temp = nearestSlot?.main?.temp;
+      const weatherCode = nearestSlot?.weather?.[0]?.id;
+      const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
+      const iconCode = nearestSlot?.weather?.[0]?.icon;
+      const iconUrl = iconCode ? `https://openweathermap.org/img/wn/${iconCode}@4x.png` : null;
+      return {
+        id: `user-${Date.now()}`,
+        barangay: label,
+        latitude,
+        longitude,
+        temperatureC: typeof temp === "number" ? Math.round(temp) : null,
+        weatherLabel: owmCodeToLabel(weatherCode),
+        weatherIcon: owmCodeToIcon(weatherCode),
+        weatherIconUrl: iconUrl,
+        forecastTimeLabel,
+        weeklyForecast: weeklyData,
+        feelsLike:
+          typeof nearestSlot?.main?.feels_like === "number"
+            ? Math.round(nearestSlot.main.feels_like)
+            : null,
+        humidity:
+          typeof nearestSlot?.main?.humidity === "number"
+            ? Math.round(nearestSlot.main.humidity)
+            : null,
+        precipitationChance:
+          typeof nearestSlot?.pop === "number"
+            ? Math.round(nearestSlot.pop * 100)
+            : null,
+      };
+    } catch (err) {
+      console.warn("OWM fetch failed; trying Open-Meteo", err);
+    }
+  }
+
+  // Fallback: Open-Meteo (no API key)
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,precipitation_probability&timezone=auto`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const cw = data?.current_weather;
+      const temp = typeof cw?.temperature === "number" ? Math.round(cw.temperature) : null;
+      const weatherCode = cw?.weathercode ?? null;
+      const forecastTimeLabel = cw?.time ? `At ${cw.time}` : "Current weather";
+      return {
+        id: `user-${Date.now()}`,
+        barangay: label,
+        latitude,
+        longitude,
+        temperatureC: temp,
+        weatherLabel: openMeteoCodeToLabel(weatherCode),
+        weatherIcon: WeatherIcons.default,
+        weatherIconUrl: null,
+        forecastTimeLabel,
+        weeklyForecast: [],
+        feelsLike: null,
+        humidity: Array.isArray(data?.hourly?.relativehumidity_2m)
+          ? Math.round(data.hourly.relativehumidity_2m[0])
+          : null,
+        precipitationChance: Array.isArray(data?.hourly?.precipitation_probability)
+          ? Math.round(data.hourly.precipitation_probability[0])
+          : null,
+      };
+    }
+  } catch (err) {
+    console.warn("Open-Meteo fetch failed", err);
+  }
+
+  return null;
 }
 
 function buildOwmIconUrl(iconCode?: string | null): string | null {
@@ -782,19 +881,77 @@ export default function SafetyMapScreen() {
 
   const [forceShowAllEvacs, setForceShowAllEvacs] = useState(false);
 
-  const handleFindMe = useCallback(() => {
-    if (!userLocation) return;
+  const handleFindMe = useCallback(async () => {
+    let currentLocation = userLocation;
+    // If we don't have a location yet, try to fetch it now
+    if (!currentLocation) {
+      setIsLoadingLocation(true);
+      currentLocation = await LocationService.getCurrentLocation();
+      setUserLocation(currentLocation);
+      setIsLoadingLocation(false);
+    }
+
+    if (!currentLocation) return;
+
+    // Optimistically show a "your location" weather entry in the info panel
+    const loadingWeather: WeatherMarkerData = {
+      id: `user-loading-${Date.now()}`,
+      barangay: "Your location",
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      temperatureC: null,
+      weatherLabel: "Fetching forecast...",
+      weatherIcon: WeatherIcons.default,
+      weatherIconUrl: null,
+      forecastTimeLabel: null,
+      weeklyForecast: [],
+      feelsLike: null,
+      humidity: null,
+      precipitationChance: null,
+    };
+    setSelectedMarkerData({ type: "weather", data: loadingWeather });
+
+    // Fetch a fresh forecast for the exact location when possible; otherwise fall back to nearest marker
+    const userWeather = await fetchWeatherForCoords(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      "Your location"
+    );
+    if (userWeather) {
+      setSelectedMarkerData({ type: "weather", data: userWeather });
+    } else if (activeWeatherMarkers.length > 0) {
+      let nearest = activeWeatherMarkers[0];
+      let nearestDistance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        nearest.latitude,
+        nearest.longitude
+      );
+      for (const marker of activeWeatherMarkers) {
+        const d = calculateDistance(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          marker.latitude,
+          marker.longitude
+        );
+        if (d < nearestDistance) {
+          nearestDistance = d;
+          nearest = marker;
+        }
+      }
+      setSelectedMarkerData({ type: "weather", data: nearest });
+    }
 
     setForceShowAllEvacs(false);
     setRoutePath(null);
     setFocusTarget({
-      latitude: userLocation.latitude,
-      longitude: userLocation.longitude,
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
       zoomDelta: 0.02,
       key: `find-me-${Date.now()}`,
     });
     setShowInfoPanel(true);
-  }, [userLocation]);
+  }, [userLocation, activeWeatherMarkers]);
 
   const handleNearestEvac = useCallback(() => {
     if (!nearestEvacuation) return;
