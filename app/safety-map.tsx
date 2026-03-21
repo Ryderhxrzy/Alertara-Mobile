@@ -316,6 +316,7 @@ export default function SafetyMapScreen() {
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedMarkerData, setSelectedMarkerData] = useState<any>(null);
   const [routePath, setRoutePath] = useState<{ latitude: number; longitude: number }[] | null>(null);
+  const [mapType, setMapType] = useState<"standard" | "satellite" | "hybrid" | "terrain">("hybrid");
   const [focusTarget, setFocusTarget] = useState<{
     latitude: number;
     longitude: number;
@@ -335,7 +336,7 @@ export default function SafetyMapScreen() {
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
   const [infoPanelHeight, setInfoPanelHeight] = useState(0);
   const quickActionsBottom = useMemo(
-    () => (showInfoPanel ? infoPanelHeight + 32 : 86),
+    () => (showInfoPanel ? infoPanelHeight + 12 : 32),
     [showInfoPanel, infoPanelHeight]
   );
   const quickActionsDynamicStyle = useMemo(
@@ -823,10 +824,6 @@ export default function SafetyMapScreen() {
     setShowInfoPanel(true);
   }, [nearestEvacuation, userLocation, computeRoute]);
 
-  const handleNavigateToNearest = useCallback(() => {
-    // Deprecated action; nearest already computes the route.
-  }, []);
-
   return (
     <ThemedView style={styles.container}>
       {/* Map Area */}
@@ -845,6 +842,7 @@ export default function SafetyMapScreen() {
             isLoadingCrimeData={false}
             clusteringEnabled={!forceShowAllEvacs}
             routePath={routePath}
+            mapType={mapType}
             onMapPress={handleMapPress}
             onMarkerPress={handleMarkerPress}
             focusTarget={focusTarget}
@@ -887,7 +885,7 @@ export default function SafetyMapScreen() {
         onPress={() => setShowLegend(!showLegend)}
       >
         <IconSymbol
-          name={showLegend ? "chevron.right" : "chevron.left"}
+          name={showLegend ? "chevron.down" : "list.bullet"}
           size={20}
           color={TealColors.primary}
         />
@@ -925,6 +923,39 @@ export default function SafetyMapScreen() {
           <ThemedText style={styles.legendGuide}>
             Blue = Low density | Red = High density
           </ThemedText>
+
+          <View style={styles.legendDivider} />
+
+          <View style={styles.mapTypeToggleRow}>
+            {[
+              { key: "hybrid", label: "Hybrid" },
+              { key: "terrain", label: "Terrain" },
+              { key: "standard", label: "Standard" },
+              { key: "satellite", label: "Satellite" },
+            ].map((opt) => (
+              <Pressable
+                key={opt.key}
+                style={[
+                  styles.mapTypeChip,
+                  {
+                    backgroundColor:
+                      mapType === opt.key ? `${TealColors.primary}22` : isDarkMode ? "#1f2937" : "#e5e7eb",
+                    borderColor: mapType === opt.key ? TealColors.primary : isDarkMode ? "#334155" : "#cbd5e1",
+                  },
+                ]}
+                onPress={() => setMapType(opt.key as typeof mapType)}
+              >
+                <ThemedText
+                  style={[
+                    styles.mapTypeChipText,
+                    { color: mapType === opt.key ? TealColors.primary : isDarkMode ? "#e2e8f0" : "#0f172a" },
+                  ]}
+                >
+                  {opt.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
 
           <View style={styles.legendDivider} />
           <ThemedText style={styles.legendSectionTitle}>Map Layers</ThemedText>
@@ -979,19 +1010,6 @@ export default function SafetyMapScreen() {
             </View>
             <ThemedText style={styles.checkboxLabel}>Evac Area</ThemedText>
           </Pressable>
-        </View>
-      )}
-
-      {!showInfoPanel && (
-        <View
-          style={[
-            styles.infoHint,
-            { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
-          ]}
-        >
-          <ThemedText style={styles.infoHintText}>
-            Tap map or marker to show area information
-          </ThemedText>
         </View>
       )}
 
@@ -1458,8 +1476,8 @@ const styles = StyleSheet.create({
   },
   legendToggle: {
     position: "absolute",
-    top: 20,
-    right: 16,
+    top: 44,
+    right: 18,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
@@ -1527,6 +1545,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 8,
+  },
+  mapTypeToggleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
+  },
+  mapTypeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  mapTypeChipText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   checkboxRow: {
     flexDirection: "row",
@@ -1625,25 +1659,6 @@ const styles = StyleSheet.create({
     color: TealColors.primary,
     fontWeight: "700",
     fontSize: 12,
-  },
-  infoHint: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  infoHintText: {
-    fontSize: 12,
-    textAlign: "center",
-    opacity: 0.85,
   },
   infoPanel: {
     paddingHorizontal: 16,

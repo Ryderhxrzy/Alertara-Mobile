@@ -39,6 +39,7 @@ interface GoogleMapProps {
   isLoadingCrimeData?: boolean;
   clusteringEnabled?: boolean;
   routePath?: { latitude: number; longitude: number }[] | null;
+  mapType?: "standard" | "satellite" | "hybrid" | "terrain" | "none" | "mutedStandard";
   onMapReady?: () => void;
   onMapPress?: () => void;
   onMarkerPress?: (marker: any) => void;
@@ -61,6 +62,7 @@ function GoogleMapComponent({
   isLoadingCrimeData = false,
   clusteringEnabled = true,
   routePath = null,
+  mapType = "hybrid",
   onMapReady,
   onMapPress,
   onMarkerPress,
@@ -133,7 +135,7 @@ function GoogleMapComponent({
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={INITIAL_REGION}
-        mapType="satellite"
+        mapType={mapType}
         clusteringEnabled={clusteringEnabled}
         onMapReady={handleMapReady}
         onPress={onMapPress}
