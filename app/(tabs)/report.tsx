@@ -2,8 +2,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ThemedText } from "@/components/themed-text";
 import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
-import { Header } from "@/components/header";
 import {
+  ActivityIndicator,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -53,6 +53,7 @@ export default function ReportScreen() {
   });
   const [manualLock, setManualLock] = useState(false);
   const [locationWarning, setLocationWarning] = useState("");
+  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
 
   const background = isDarkMode ? Colors.dark.background : Colors.light.background;
   const cardBackground = isDarkMode ? "#152126" : "#ffffff";
@@ -106,6 +107,29 @@ export default function ReportScreen() {
     setManualLock((prev) => !prev);
   };
 
+  const handleRefreshLocation = async () => {
+    setIsRefreshingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationWarning("Location permission denied");
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setLocationCoords(coords);
+      await refreshAddress(coords);
+      setLocationWarning("");
+    } catch {
+      setLocationWarning("Couldn't refresh location");
+    } finally {
+      setIsRefreshingLocation(false);
+    }
+  };
+
   const handleSubmit = () => {
     setConfirmation("Report sent to dispatch. Responders notified.");
     setShowDetails(false);
@@ -139,24 +163,24 @@ export default function ReportScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: background }]}>
-      <Header />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <IconSymbol size={36} name="exclamationmark.triangle" color={TealColors.primary} />
-          <View style={styles.heroText}>
-            <ThemedText type="title" style={styles.title}>
-              Report an Incident
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Details go straight to dispatch plus a confirmation summary.
-            </ThemedText>
+        <View style={[styles.heroCard, { backgroundColor: isDarkMode ? "#0f172a" : "#e8f5f2" }]}>
+          <View style={styles.heroHeader}>
+            <IconSymbol size={28} name="exclamationmark.triangle" color={TealColors.primary} />
+            <ThemedText style={styles.heroKicker}>Step 1 of 3 · Incident Details</ThemedText>
           </View>
+          <ThemedText type="title" style={styles.title}>
+            Report an Incident
+          </ThemedText>
+          <ThemedText style={styles.subtitle}>
+            Send location, type, and severity so dispatch can respond faster.
+          </ThemedText>
         </View>
         <View style={styles.quickRow}>
           {quickPresets.map((preset) => (
             <Pressable
               key={preset.label}
-              style={[styles.quickButton, { borderColor }]}
+              style={[styles.quickButton, { borderColor, backgroundColor: isDarkMode ? "#102026" : "#f7fbff" }]}
               onPress={() => handlePreset(preset)}
             >
               <ThemedText style={styles.quickText}>{preset.label}</ThemedText>
@@ -195,6 +219,16 @@ export default function ReportScreen() {
               <ThemedText style={styles.locationLabel}>Current location</ThemedText>
               <ThemedText style={styles.locationValue}>{locationNote}</ThemedText>
             </View>
+            <Pressable style={[styles.refreshChip, { borderColor: accent }]} onPress={handleRefreshLocation}>
+              {isRefreshingLocation ? (
+                <ActivityIndicator size="small" color={accent} />
+              ) : (
+                <IconSymbol name="location" size={16} color={accent} />
+              )}
+              <Text style={[styles.refreshText, { color: accent }]}>
+                Refresh
+              </Text>
+            </Pressable>
           </View>
           <MapView
             style={styles.mapPreview}
@@ -261,7 +295,9 @@ export default function ReportScreen() {
             onChangeText={setSummary}
             placeholder="Short summary"
             placeholderTextColor={isDarkMode ? "#6c6c70" : "#999"}
+            maxLength={140}
           />
+          <Text style={styles.helperText}>{summary.length}/140 characters</Text>
           <TextInput
             style={[styles.input, styles.detailsInput, { color: isDarkMode ? "#fff" : "#111" }]}
             value={details}
@@ -270,6 +306,9 @@ export default function ReportScreen() {
             placeholderTextColor={isDarkMode ? "#6c6c70" : "#999"}
             multiline
           />
+          <Text style={styles.helperText}>
+            Include who/what, visible hazards, people affected, and access points.
+          </Text>
           <Pressable style={[styles.attachButton, { borderColor }]} onPress={() => setShowDetails((prev) => !prev)}>
             <IconSymbol name="camera" size={18} color={isDarkMode ? "#fff" : "#111"} />
             <Text style={styles.attachText}>{showDetails ? "Hide media" : "Attach photo / video"}</Text>
@@ -287,9 +326,10 @@ export default function ReportScreen() {
       <Pressable
         style={[styles.floatingButton, { backgroundColor: "#e53935" }]}
         onPress={handleSubmit}
+        disabled={!summary.trim()}
       >
         <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#fff" />
-        <Text style={styles.floatingText}>Submit Report</Text>
+        <Text style={styles.floatingText}>{summary.trim() ? "Submit Report" : "Add summary to submit"}</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -313,6 +353,25 @@ const styles = StyleSheet.create({
   },
   heroText: {
     flex: 1,
+  },
+  heroCard: {
+    borderRadius: 18,
+    padding: 16,
+    gap: 8,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "rgba(52, 211, 153, 0.25)",
+    marginTop: 12,
+  },
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  heroKicker: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TealColors.primary,
   },
   title: {
     fontSize: 26,
@@ -366,6 +425,19 @@ const styles = StyleSheet.create({
   locationValue: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  refreshChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+  },
+  refreshText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   severityRow: {
     flexDirection: "row",
@@ -462,8 +534,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  helperText: {
+    fontSize: 12,
+    color: "#8a8a8a",
+    marginTop: 4,
+  },
   mapPreview: {
-    height: 140,
+    height: 190,
     borderRadius: 16,
     marginTop: 12,
     overflow: "hidden",
