@@ -3,7 +3,9 @@ import type { EvacuationLocation } from "@/data/evacuation-locations";
 import type { CrimeDataPoint, UserLocation } from "@/types/crime";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
-import MapView, { Marker, Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+// Use clustering to reduce marker clutter (especially for evacuation sites).
+import MapView from "react-native-map-clustering";
+import { Marker, Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { IconSymbol } from "./ui/icon-symbol";
 import { ThemedText } from "./themed-text";
 
@@ -35,6 +37,8 @@ interface GoogleMapProps {
   weatherMarkers?: WeatherMarker[];
   nearestEvacuationId?: string | null;
   isLoadingCrimeData?: boolean;
+  clusteringEnabled?: boolean;
+  routePath?: { latitude: number; longitude: number }[] | null;
   onMapReady?: () => void;
   onMapPress?: () => void;
   onMarkerPress?: (marker: any) => void;
@@ -55,6 +59,8 @@ function GoogleMapComponent({
   weatherMarkers = [],
   nearestEvacuationId = null,
   isLoadingCrimeData = false,
+  clusteringEnabled = true,
+  routePath = null,
   onMapReady,
   onMapPress,
   onMarkerPress,
@@ -123,19 +129,26 @@ function GoogleMapComponent({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-      provider={PROVIDER_GOOGLE}
-      style={styles.map}
-      initialRegion={INITIAL_REGION}
-      onMapReady={handleMapReady}
-      onPress={onMapPress}
-      zoomEnabled
-      scrollEnabled
-      pitchEnabled
-      rotateEnabled
-      showsMyLocationButton={false}
-      toolbarEnabled={false}
-      showsCompass={false}
-      zoomControlEnabled={false}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={INITIAL_REGION}
+        clusteringEnabled={clusteringEnabled}
+        onMapReady={handleMapReady}
+        onPress={onMapPress}
+        zoomEnabled
+        scrollEnabled
+        pitchEnabled
+        rotateEnabled
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
+        showsCompass={false}
+        zoomControlEnabled={false}
+        // clustering props
+        clusterColor="#EA580C"
+        clusterTextColor="#ffffff"
+        radius={48}
+        spiralEnabled
+        animationEnabled
       >
         {coordinates.length > 0 && (
           <Polygon
@@ -156,11 +169,24 @@ function GoogleMapComponent({
           />
         )}
 
+        {routePath && routePath.length > 1 && (
+          <Polyline
+            coordinates={routePath}
+            strokeColor={TealColors.primary}
+            strokeWidth={5}
+            lineDashPattern={[14, 8]}
+            geodesic
+          />
+        )}
+
         {userCoordinate && (
           <Marker
             coordinate={userCoordinate}
             title="You are here"
             description="Current position"
+            // Exclude user pin from clustering; keep it always visible.
+            // @ts-expect-error cluster prop comes from react-native-map-clustering
+            cluster={false}
             tracksViewChanges={false}
             onPress={() => onMarkerPress?.({ type: "user", data: userLocation })}
           >
@@ -180,9 +206,16 @@ function GoogleMapComponent({
               coordinate={{ latitude: site.latitude, longitude: site.longitude }}
               title={site.name}
               description={`${site.district} evacuation site`}
-              pinColor={isNearest ? "#16A34A" : "#EA580C"}
+              // Keep view-based markers from disappearing when clustering/zooming.
+              tracksViewChanges={true}
               onPress={() => onMarkerPress?.({ type: "evacuation", data: site })}
-            />
+            >
+              <IconSymbol
+                name="building"
+                size={22}
+                color={isNearest ? "#d97706" : "#ea580c"}
+              />
+            </Marker>
           );
         })}
 
@@ -197,6 +230,9 @@ function GoogleMapComponent({
               coordinate={{ latitude: weather.latitude, longitude: weather.longitude }}
               title={`${weather.barangay} Weather`}
               description={`${weather.weatherLabel}${weather.forecastTimeLabel ? ` at ${weather.forecastTimeLabel}` : ""}${weather.temperatureC !== null ? `, ${weather.temperatureC}\u00B0C` : ""}`}
+              // Keep weather markers out of evac clustering.
+              // @ts-expect-error cluster prop comes from react-native-map-clustering
+              cluster={false}
               onPress={() => onMarkerPress?.({ type: "weather", data: weather })}
               tracksViewChanges={true}
             >
@@ -224,6 +260,9 @@ function GoogleMapComponent({
             title={`Crime Report ${index + 1}`}
             description={crime.date || "Recent incident"}
             tracksViewChanges={false}
+            // Keep crime markers out of evac clustering.
+            // @ts-expect-error cluster prop comes from react-native-map-clustering
+            cluster={false}
             pinColor="red"
             onPress={() => onMarkerPress?.({ type: "crime", data: crime })}
           />

@@ -315,6 +315,7 @@ export default function SafetyMapScreen() {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedMarkerData, setSelectedMarkerData] = useState<any>(null);
+  const [routePath, setRoutePath] = useState<{ latitude: number; longitude: number }[] | null>(null);
   const [focusTarget, setFocusTarget] = useState<{
     latitude: number;
     longitude: number;
@@ -333,9 +334,13 @@ export default function SafetyMapScreen() {
   const [showHourlyHint, setShowHourlyHint] = useState(true);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
   const [infoPanelHeight, setInfoPanelHeight] = useState(0);
-  const quickActionsDynamicStyle = useMemo(
-    () => ({ bottom: showInfoPanel ? infoPanelHeight + 32 : 86 }),
+  const quickActionsBottom = useMemo(
+    () => (showInfoPanel ? infoPanelHeight + 32 : 86),
     [showInfoPanel, infoPanelHeight]
+  );
+  const quickActionsDynamicStyle = useMemo(
+    () => ({ bottom: quickActionsBottom }),
+    [quickActionsBottom]
   );
 
   const toggleLayer = useCallback((layer: "alert" | "weather" | "evac") => {
@@ -375,9 +380,56 @@ export default function SafetyMapScreen() {
       }
     }
 
-    if (!nearest || minDistance === Infinity) return null;
-    return { site: nearest, distanceKm: minDistance };
-  }, [userLocation]);
+  if (!nearest || minDistance === Infinity) return null;
+  return { site: nearest, distanceKm: minDistance };
+}, [userLocation]);
+
+  const navigationInfo = useMemo(() => {
+    if (!routePath || routePath.length < 2 || !nearestEvacuation) return null;
+    const start = routePath[0];
+    const end = routePath[routePath.length - 1];
+    const distanceKm = calculateDistance(
+      start.latitude,
+      start.longitude,
+      end.latitude,
+      end.longitude
+    );
+    const etaMinutes = Math.max(1, Math.round((distanceKm / 4) * 60)); // ~4 km/h walking
+    return {
+      distanceKm,
+      etaMinutes,
+      destination: nearestEvacuation.site.name,
+    };
+  }, [routePath, nearestEvacuation]);
+
+  const computeRoute = useCallback(
+    async (
+      origin: { latitude: number; longitude: number },
+      destination: { latitude: number; longitude: number }
+    ) => {
+      // optimistic straight line while fetching a better path
+      setRoutePath([origin, destination]);
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        const coords =
+          data?.routes?.[0]?.geometry?.coordinates?.map(
+            ([lng, lat]: [number, number]) => ({
+              latitude: lat,
+              longitude: lng,
+            })
+          ) ?? [];
+        if (coords.length > 1) {
+          setRoutePath(coords);
+        }
+      } catch {
+        // ignore network errors; fallback straight line remains
+      }
+    },
+    []
+  );
 
   const selectedMarkerMessage = useMemo(() => {
     if (selectedMarkerData?.type === "evacuation") {
@@ -715,16 +767,25 @@ export default function SafetyMapScreen() {
 
   const handleMapPress = useCallback(() => {
     setShowInfoPanel(true);
+    // Return to normal clustering after user interacts with map
+    setForceShowAllEvacs(false);
+    // Clear manual route when user taps away
+    setRoutePath(null);
   }, []);
 
   const handleMarkerPress = useCallback((marker: any) => {
     setSelectedMarkerData(marker);
     setShowInfoPanel(true);
+    // keep forceShowAllEvacs state; clicking a marker shouldn't re-enable clustering
   }, []);
+
+  const [forceShowAllEvacs, setForceShowAllEvacs] = useState(false);
 
   const handleFindMe = useCallback(() => {
     if (!userLocation) return;
 
+    setForceShowAllEvacs(false);
+    setRoutePath(null);
     setFocusTarget({
       latitude: userLocation.latitude,
       longitude: userLocation.longitude,
@@ -737,10 +798,22 @@ export default function SafetyMapScreen() {
   const handleNearestEvac = useCallback(() => {
     if (!nearestEvacuation) return;
 
+    setForceShowAllEvacs(true);
+    if (userLocation) {
+      void computeRoute(
+        { latitude: userLocation.latitude, longitude: userLocation.longitude },
+        {
+          latitude: nearestEvacuation.site.latitude,
+          longitude: nearestEvacuation.site.longitude,
+        }
+      );
+    } else {
+      setRoutePath(null);
+    }
     setFocusTarget({
       latitude: nearestEvacuation.site.latitude,
       longitude: nearestEvacuation.site.longitude,
-      zoomDelta: 0.025,
+      zoomDelta: 0.012,
       key: `nearest-evac-${Date.now()}`,
     });
     setSelectedMarkerData({
@@ -748,7 +821,11 @@ export default function SafetyMapScreen() {
       data: nearestEvacuation.site,
     });
     setShowInfoPanel(true);
-  }, [nearestEvacuation]);
+  }, [nearestEvacuation, userLocation, computeRoute]);
+
+  const handleNavigateToNearest = useCallback(() => {
+    // Deprecated action; nearest already computes the route.
+  }, []);
 
   return (
     <ThemedView style={styles.container}>
@@ -766,6 +843,8 @@ export default function SafetyMapScreen() {
             weatherMarkers={activeWeatherMarkers}
             nearestEvacuationId={nearestEvacuation?.site.id ?? null}
             isLoadingCrimeData={false}
+            clusteringEnabled={!forceShowAllEvacs}
+            routePath={routePath}
             onMapPress={handleMapPress}
             onMarkerPress={handleMarkerPress}
             focusTarget={focusTarget}
@@ -971,6 +1050,33 @@ export default function SafetyMapScreen() {
               <ThemedText style={styles.infoPanelSubtitle}>
                 {selectedMarkerMessage}
               </ThemedText>
+            )}
+
+            {navigationInfo && (
+              <View
+                style={[
+                  styles.navigationInfoCard,
+                  {
+                    backgroundColor: isDarkMode ? "#111827" : "#f8fafc",
+                    borderColor: isDarkMode ? "#1f2937" : "#e5e7eb",
+                  },
+                ]}
+              >
+                <View style={styles.navigationInfoRow}>
+                  <IconSymbol name="arrow.right" size={18} color={TealColors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.navigationTitle} numberOfLines={1}>
+                      Routing to {navigationInfo.destination}
+                    </ThemedText>
+                    <ThemedText style={styles.navigationSubtitle}>
+                      {navigationInfo.distanceKm.toFixed(2)} km · ~{navigationInfo.etaMinutes} min
+                    </ThemedText>
+                  </View>
+                  <Pressable style={styles.navigationClearBtn} onPress={() => setRoutePath(null)}>
+                    <ThemedText style={styles.navigationClearText}>Clear</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
             )}
 
             {selectedMarkerData?.type === "evacuation" && (
@@ -1470,6 +1576,55 @@ const styles = StyleSheet.create({
   quickActionText: {
     fontSize: 12,
     fontWeight: "700",
+  },
+  navigationBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 15,
+  },
+  navigationBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navigationTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  navigationSubtitle: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  navigationInfoCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  navigationInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navigationClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  navigationClearText: {
+    color: TealColors.primary,
+    fontWeight: "700",
+    fontSize: 12,
   },
   infoHint: {
     position: "absolute",
