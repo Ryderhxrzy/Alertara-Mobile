@@ -76,8 +76,10 @@ const MAPPING = {
   globe: "globe-outline",
   lock: "lock-closed-outline",
   "doc.text": "document-text-outline",
+  "bubble.right": "chatbubble-ellipses-outline",
   "questionmark.circle": "help-circle-outline",
   "arrow.backward": "arrow-back",
+  ellipsis: "ellipsis-horizontal",
   "list.bullet": "list-outline",
 } as unknown as IconMapping;
 

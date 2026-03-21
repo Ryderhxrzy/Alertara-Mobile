@@ -383,7 +383,19 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* Message Button */}
-      <Pressable style={styles.messageButton} onPress={() => {}}>
+      <Pressable
+        style={styles.messageButton}
+        onPress={() =>
+          router.push({
+            pathname: "/chat/[id]",
+            params: {
+              id: "general",
+              title: "General Support",
+              category: "General",
+            },
+          } as never)
+        }
+      >
         <IconSymbol size={24} name="bubble.right" color="#fff" />
       </Pressable>
     </SafeAreaView>
