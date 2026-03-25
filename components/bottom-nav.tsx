@@ -1,4 +1,5 @@
 import { TealColors } from "@/constants/theme";
+import { useTranslate } from "@/hooks/useTranslate";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React from "react";
 import {
@@ -16,6 +17,7 @@ export function BottomNav({
   descriptors,
   navigation,
 }: BottomTabBarProps) {
+  const { t } = useTranslate();
   const callIndex = state.routes.findIndex((r) => r.name === "call");
   const adjacentSpacing = 40; // spacing reserved on either side of call button
 
@@ -24,7 +26,18 @@ export function BottomNav({
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
-        const label = route.name === "report" ? "Report" : options.title || route.name;
+        const label =
+          route.name === "index"
+            ? t("nav.home", "Home")
+            : route.name === "map"
+              ? t("nav.map", "Map")
+              : route.name === "report"
+                ? t("nav.report", "Report")
+                : route.name === "me"
+                  ? t("nav.profile", "Profile")
+                  : route.name === "call"
+                    ? t("nav.call", "Call")
+                    : options.title || route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {

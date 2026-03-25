@@ -15,6 +15,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ThemedText } from "@/components/themed-text";
 import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
+import { useTranslate } from "@/hooks/useTranslate";
 
 type IncidentIndexItem = {
   id: string;
@@ -31,6 +32,7 @@ const LAST_CHAT_KEY = "last-incident-chat";
 export default function ReportHistoryScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
+  const { t } = useTranslate();
   const [items, setItems] = useState<IncidentIndexItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -98,7 +100,7 @@ export default function ReportHistoryScreen() {
           <IconSymbol name="arrow.left" size={18} color={TealColors.primary} />
         </Pressable>
         <ThemedText type="title" style={[styles.title, { color: textColor }]}>
-          Report History
+          {t("history.title")}
         </ThemedText>
         <Pressable
           style={[styles.clearBtn, { borderColor: TealColors.primary }]}
@@ -116,7 +118,7 @@ export default function ReportHistoryScreen() {
               { color: items.length ? TealColors.primary : "#9ca3af" },
             ]}
           >
-            Clear
+            {t("history.clear", "Clear")}
           </Text>
         </Pressable>
       </View>
@@ -127,7 +129,7 @@ export default function ReportHistoryScreen() {
         <View style={styles.empty}>
           <IconSymbol name="clock.arrow.circlepath" size={26} color="#9ca3af" />
           <ThemedText style={[styles.emptyText, { color: textColor }]}>
-            No past reports yet.
+            {t("history.empty")}
           </ThemedText>
         </View>
       ) : (
@@ -136,9 +138,19 @@ export default function ReportHistoryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 10 }}
           renderItem={({ item }) => {
-            const status = item.status ?? "Pending";
+            const statusKey = (item.status ?? "pending").toLowerCase();
+            const status =
+              statusKey === "pending"
+                ? t("status.pending")
+                : statusKey === "received"
+                  ? t("status.received")
+                  : statusKey === "in progress"
+                    ? t("status.inProgress")
+                    : statusKey === "resolved"
+                      ? t("status.resolved")
+                      : item.status ?? t("status.pending");
             const icon = item.icon ?? "exclamationmark.triangle";
-            const statusColor = status === "Pending" ? "#e3b341" : "#2f9d63";
+            const statusColor = statusKey === "pending" ? "#e3b341" : "#2f9d63";
             return (
             <Pressable
               style={[
@@ -160,7 +172,7 @@ export default function ReportHistoryScreen() {
               </View>
               <View style={styles.infoRow}>
                 <ThemedText style={[styles.meta, { color: isDarkMode ? "#cbd5e1" : "#475569" }]}>
-                  {new Date(item.updatedAt).toLocaleString()}
+                  {t("history.updated")} {new Date(item.updatedAt).toLocaleString()}
                 </ThemedText>
                 <Pressable
                   style={[
@@ -174,7 +186,7 @@ export default function ReportHistoryScreen() {
                 >
                   <IconSymbol name="bubble.right" size={14} color={TealColors.primary} />
                   <Text style={[styles.chatBtnText, { color: TealColors.primary }]}>
-                    Open conversation
+                    {t("history.openConversation")}
                   </Text>
                 </Pressable>
               </View>

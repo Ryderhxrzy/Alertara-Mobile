@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
+import { useTranslate } from "@/hooks/useTranslate";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -46,6 +47,7 @@ const formatAddress = (address: Location.LocationGeocodedAddress) => {
 
 export default function ReportScreen() {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslate();
   const router = useRouter();
   const [summary, setSummary] = useState("");
   const [details, setDetails] = useState("");
@@ -94,23 +96,23 @@ export default function ReportScreen() {
   };
 
   const incidentTypes = [
-    { id: "fire", label: "Fire", icon: "flame", color: "#f0543c" },
-    { id: "medical", label: "Medical", icon: "bandage", color: "#8f44fd" },
-    { id: "crime", label: "Crime", icon: "shield", color: "#e77a3e" },
-    { id: "accident", label: "Accident", icon: "car-sport", color: "#2d98da" },
-    { id: "flood", label: "Flood", icon: "drop", color: "#3a86ff" },
+    { id: "fire", label: t("type.fire"), icon: "flame", color: "#f0543c" },
+    { id: "medical", label: t("type.medical"), icon: "bandage", color: "#8f44fd" },
+    { id: "crime", label: t("type.crime"), icon: "shield", color: "#e77a3e" },
+    { id: "accident", label: t("type.accident"), icon: "car-sport", color: "#2d98da" },
+    { id: "flood", label: t("type.flood"), icon: "drop", color: "#3a86ff" },
   ];
   const [selectedType, setSelectedType] = useState(incidentTypes[0].id);
   const quickPresets = [
-    { label: "Report Fire Now", type: "fire", severity: "High" },
-    { label: "Medical Alert", type: "medical", severity: "High" },
+    { label: t("report.quickFire"), type: "fire", severity: "High" },
+    { label: t("report.quickMedical"), type: "medical", severity: "High" },
   ];
 
   const handlePreset = (preset: (typeof quickPresets)[number]) => {
     setSelectedType(preset.type);
     setSeverity(preset.severity as "Low" | "Medium" | "High");
-    setSummary(`${preset.label} – urgent`);
-    setDetails("Auto-filled template; add location notes if needed.");
+    setSummary(`${preset.label} – ${t("status.pending")}`);
+    setDetails(t("report.quickNote"));
   };
 
   const handleLocationToggle = () => {
@@ -159,7 +161,7 @@ export default function ReportScreen() {
       };
       // Simulated send; replace with API call later
       await new Promise((resolve) => setTimeout(resolve, 500));
-      setConfirmation("Report sent to dispatch. Responders notified.");
+      setConfirmation(t("report.confirmationOk"));
       setShowDetails(false);
       const chatParams = {
         id: payload.id,
@@ -192,7 +194,7 @@ export default function ReportScreen() {
         params: chatParams,
       } as never);
     } catch {
-      setConfirmation("Couldn't send report. Please try again.");
+      setConfirmation(t("report.confirmationFail"));
     } finally {
       setIsSubmitting(false);
     }
@@ -251,14 +253,14 @@ export default function ReportScreen() {
               color={TealColors.primary}
             />
             <ThemedText style={styles.heroKicker}>
-              Step 1 of 3 · Incident Details
+              Step 1 of 3 · {t("report.title")}
             </ThemedText>
           </View>
           <ThemedText type="title" style={styles.title}>
-            Report an Incident
+            {t("report.title")}
           </ThemedText>
           <ThemedText style={styles.subtitle}>
-            Send location, type, and severity so dispatch can respond faster.
+            {t("report.subtitle")}
           </ThemedText>
           <Pressable
             style={[styles.historyButton, { borderColor, backgroundColor: isDarkMode ? "#102026" : "#ffffff" }]}
@@ -266,7 +268,7 @@ export default function ReportScreen() {
           >
             <IconSymbol name="clock.arrow.circlepath" size={16} color={TealColors.primary} />
             <Text style={[styles.historyButtonText, { color: TealColors.primary }]}>
-              View report history
+              {t("report.historyButton")}
             </Text>
           </Pressable>
         </View>
@@ -293,7 +295,7 @@ export default function ReportScreen() {
             { backgroundColor: cardBackground, borderColor },
           ]}
         >
-          <ThemedText style={styles.sectionTitle}>Incident Type</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t("report.incidentType")}</ThemedText>
           <View style={styles.typeRow}>
             {incidentTypes.map((type) => {
               const active = selectedType === type.id;
@@ -333,11 +335,11 @@ export default function ReportScreen() {
             { backgroundColor: cardBackground, borderColor },
           ]}
         >
-          <ThemedText style={styles.sectionTitle}>Location</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t("report.location")}</ThemedText>
           <View style={styles.locationRow}>
             <View style={{ flex: 1 }}>
               <ThemedText style={styles.locationLabel}>
-                Current location
+                {t("report.currentLocation")}
               </ThemedText>
               <ThemedText style={styles.locationValue}>
                 {locationNote}
@@ -353,7 +355,7 @@ export default function ReportScreen() {
                 <IconSymbol name="location" size={16} color={accent} />
               )}
               <Text style={[styles.refreshText, { color: accent }]}>
-                Refresh
+                {t("report.refresh")}
               </Text>
             </Pressable>
           </View>
@@ -396,7 +398,7 @@ export default function ReportScreen() {
               color={accent}
             />
             <Text style={styles.lockText}>
-              {manualLock ? "Manual pin" : "Auto GPS"}
+              {manualLock ? t("report.manualPin") : t("report.autoGPS")}
             </Text>
           </Pressable>
         </View>
@@ -407,7 +409,7 @@ export default function ReportScreen() {
             { backgroundColor: cardBackground, borderColor },
           ]}
         >
-          <ThemedText style={styles.sectionTitle}>Severity</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t("report.severity")}</ThemedText>
           <View style={styles.severityRow}>
             {["Low", "Medium", "High"].map((level) => {
               const active = severity === level;
@@ -434,9 +436,13 @@ export default function ReportScreen() {
                   <ThemedText
                     style={[styles.severityText, active && { color }]}
                   >
-                    {level}
-                  </ThemedText>
-                </Pressable>
+                  {level === "High"
+                    ? t("severity.high")
+                    : level === "Medium"
+                      ? t("severity.medium")
+                      : t("severity.low")}
+                </ThemedText>
+              </Pressable>
               );
             })}
           </View>
@@ -448,12 +454,12 @@ export default function ReportScreen() {
             { backgroundColor: cardBackground, borderColor },
           ]}
         >
-          <ThemedText style={styles.sectionTitle}>Add Details</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t("report.details")}</ThemedText>
           <TextInput
             style={[styles.input, { color: isDarkMode ? "#fff" : "#111" }]}
             value={summary}
             onChangeText={setSummary}
-            placeholder="Short summary"
+            placeholder={t("report.shortSummary")}
             placeholderTextColor={isDarkMode ? "#6c6c70" : "#999"}
             maxLength={140}
           />
@@ -466,13 +472,12 @@ export default function ReportScreen() {
             ]}
             value={details}
             onChangeText={setDetails}
-            placeholder="Optional notes"
+            placeholder={t("report.optionalNotes")}
             placeholderTextColor={isDarkMode ? "#6c6c70" : "#999"}
             multiline
           />
           <Text style={styles.helperText}>
-            Include who/what, visible hazards, people affected, and access
-            points.
+            {t("report.helper")}
           </Text>
           <Pressable
             style={[styles.attachButton, { borderColor }]}
@@ -484,12 +489,12 @@ export default function ReportScreen() {
               color={isDarkMode ? "#fff" : "#111"}
             />
             <Text style={styles.attachText}>
-              {showDetails ? "Hide media" : "Attach photo / video"}
+              {showDetails ? t("report.hideMedia") : t("report.attach")}
             </Text>
           </Pressable>
           {showDetails && (
             <ThemedText style={styles.noteText}>
-              Camera ready · files stored locally until submit
+              {t("report.attachNote")}
             </ThemedText>
           )}
         </View>
@@ -511,7 +516,7 @@ export default function ReportScreen() {
               }}
             >
               <IconSymbol name="bubble.right" size={16} color="#fff" />
-              <Text style={styles.confirmationButtonText}>Open chat</Text>
+              <Text style={styles.confirmationButtonText}>{t("report.openChat")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -527,7 +532,7 @@ export default function ReportScreen() {
           >
             <IconSymbol name="arrow.uturn.right" size={14} color={TealColors.primary} />
             <Text style={[styles.resumeText, { color: TealColors.primary }]}>
-              Resume last incident chat
+              {t("report.resumeChip")}
             </Text>
           </Pressable>
         ) : null}
@@ -548,10 +553,10 @@ export default function ReportScreen() {
         )}
         <Text style={styles.floatingText}>
           {isSubmitting
-            ? "Sending..."
+            ? t("report.sending")
             : summary.trim()
-              ? "Submit Report"
-              : "Add summary to submit"}
+              ? t("report.submit")
+              : t("report.addSummary")}
         </Text>
       </Pressable>
     </SafeAreaView>
