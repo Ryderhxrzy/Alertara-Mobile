@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors, TealColors } from "@/constants/theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/context/theme-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect } from "react";
@@ -54,6 +55,9 @@ const promptMap: Record<string, string[]> = {
   ],
 };
 
+const STORAGE_PREFIX = "chat-thread-";
+const MAX_HISTORY = 50;
+
 export default function ChatScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
@@ -63,15 +67,10 @@ export default function ChatScreen() {
     category?: string;
   }>();
   const alertTitle = decodeURIComponent(title ?? "Alert chat");
+  const threadId = id ?? "general";
+  const storageKey = `${STORAGE_PREFIX}${threadId}`;
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      id: "m-0",
-      from: "bot",
-      text: `You’re chatting about “${alertTitle}”. Ask for instructions, sources, or next steps.`,
-      sentAt: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
 
   const promptChips = useMemo(() => {
@@ -83,6 +82,42 @@ export default function ChatScreen() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(storageKey);
+        if (!active) return;
+        if (saved) {
+          const parsed = JSON.parse(saved) as ChatMessage[];
+          setMessages(parsed);
+          return;
+        }
+      } catch {}
+      if (active) {
+        setMessages([
+          {
+            id: "m-0",
+            from: "bot",
+            text: `You’re chatting about "${alertTitle}". Ask for instructions, sources, or next steps.`,
+            sentAt: Date.now(),
+          },
+        ]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [storageKey, alertTitle]);
+
+  useEffect(() => {
+    if (!messages.length) return;
+    void AsyncStorage.setItem(
+      storageKey,
+      JSON.stringify(messages.slice(-MAX_HISTORY))
+    );
+  }, [messages, storageKey]);
+
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -92,20 +127,34 @@ export default function ChatScreen() {
       text: trimmed,
       sentAt: Date.now(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg].slice(-MAX_HISTORY));
     setInput("");
     // Mock bot reply
     setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `b-${Date.now()}`,
-          from: "bot",
-          text: `Bot: For "${alertTitle}", here’s a quick check — follow official guidance, stay tuned for updates, and ensure your household is ready.`,
-          sentAt: Date.now(),
-        },
-      ]);
+      setMessages((prev) =>
+        [
+          ...prev,
+          {
+            id: `b-${Date.now()}`,
+            from: "bot",
+            text: `Bot: For "${alertTitle}", here’s a quick check — follow official guidance, stay tuned for updates, and ensure your household is ready.`,
+            sentAt: Date.now(),
+          },
+        ].slice(-MAX_HISTORY)
+      );
     }, 900);
+  };
+
+  const handleReset = async () => {
+    await AsyncStorage.removeItem(storageKey);
+    setMessages([
+      {
+        id: "m-0",
+        from: "bot",
+        text: `You’re chatting about "${alertTitle}". Ask for instructions, sources, or next steps.`,
+        sentAt: Date.now(),
+      },
+    ]);
   };
 
   const screenBg = isDarkMode ? Colors.dark.background : Colors.light.background;
@@ -132,7 +181,9 @@ export default function ChatScreen() {
             {(category ? decodeURIComponent(category) : "General") + " · AI Assistant"}
           </ThemedText>
         </View>
-        <IconSymbol name="ellipsis" size={18} color="#e0f2f1" />
+        <Pressable onPress={handleReset} style={styles.resetBtn} accessibilityLabel="Reset chat history">
+          <IconSymbol name="arrow.counterclockwise" size={18} color="#e0f2f1" />
+        </Pressable>
       </View>
       </SafeAreaView>
 
@@ -263,6 +314,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#e0f2f1",
     marginTop: 2,
+  },
+  resetBtn: {
+    padding: 6,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 10,
   },
   promptsScroller: {
     maxHeight: 36,

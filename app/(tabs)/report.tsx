@@ -4,6 +4,8 @@ import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -20,6 +22,9 @@ type LatLng = {
   latitude: number;
   longitude: number;
 };
+
+const INCIDENT_INDEX_KEY = "incident-chat-index";
+const STATUS_PENDING = "Pending";
 
 const formatCoordsDescription = (coords: LatLng) =>
   `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`;
@@ -41,6 +46,7 @@ const formatAddress = (address: Location.LocationGeocodedAddress) => {
 
 export default function ReportScreen() {
   const { isDarkMode } = useTheme();
+  const router = useRouter();
   const [summary, setSummary] = useState("");
   const [details, setDetails] = useState("");
   const [severity, setSeverity] = useState<"Low" | "Medium" | "High">("Medium");
@@ -54,6 +60,11 @@ export default function ReportScreen() {
   const [manualLock, setManualLock] = useState(false);
   const [locationWarning, setLocationWarning] = useState("");
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastIncidentChat, setLastIncidentChat] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const background = isDarkMode
     ? Colors.dark.background
@@ -129,14 +140,75 @@ export default function ReportScreen() {
     }
   };
 
-  const handleSubmit = () => {
-    setConfirmation("Report sent to dispatch. Responders notified.");
-    setShowDetails(false);
+  const handleSubmit = async () => {
+    if (!summary.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    setConfirmation("");
+    try {
+      const incidentId = `incident-${Date.now()}`;
+      const payload = {
+        id: incidentId,
+        summary: summary.trim(),
+        details: details.trim(),
+        severity,
+        type: selectedType,
+        location: locationCoords,
+        submittedAt: new Date().toISOString(),
+        status: STATUS_PENDING,
+        icon: incidentTypes.find((t) => t.id === selectedType)?.icon ?? "exclamationmark.triangle",
+      };
+      // Simulated send; replace with API call later
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setConfirmation("Report sent to dispatch. Responders notified.");
+      setShowDetails(false);
+      const chatParams = {
+        id: payload.id,
+        title: encodeURIComponent(payload.summary || "Incident Report"),
+        category: "Alert",
+        icon: payload.icon,
+        status: payload.status,
+      };
+      // maintain local history index (most recent first, max 20)
+      try {
+        const rawIndex = await AsyncStorage.getItem(INCIDENT_INDEX_KEY);
+        const parsed: { id: string; title: string; category: string; updatedAt: string; icon?: string; status?: string }[] =
+          rawIndex ? JSON.parse(rawIndex) : [];
+        const filtered = parsed.filter((item) => item.id !== payload.id);
+        const next = [
+          { ...chatParams, updatedAt: payload.submittedAt },
+          ...filtered,
+        ].slice(0, 20);
+        await AsyncStorage.setItem(INCIDENT_INDEX_KEY, JSON.stringify(next));
+      } catch {
+        // ignore index write errors
+      }
+      await AsyncStorage.setItem(
+        "last-incident-chat",
+        JSON.stringify(chatParams)
+      );
+      setLastIncidentChat(chatParams);
+      router.push({
+        pathname: "/chat/[id]",
+        params: chatParams,
+      } as never);
+    } catch {
+      setConfirmation("Couldn't send report. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {
     let subscribed = true;
     (async () => {
+      try {
+        const saved = await AsyncStorage.getItem("last-incident-chat");
+        if (saved && subscribed) {
+          setLastIncidentChat(JSON.parse(saved));
+        }
+      } catch {
+        // ignore load errors
+      }
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         if (subscribed) {
@@ -188,6 +260,15 @@ export default function ReportScreen() {
           <ThemedText style={styles.subtitle}>
             Send location, type, and severity so dispatch can respond faster.
           </ThemedText>
+          <Pressable
+            style={[styles.historyButton, { borderColor, backgroundColor: isDarkMode ? "#102026" : "#ffffff" }]}
+            onPress={() => router.push("/report-history" as never)}
+          >
+            <IconSymbol name="clock.arrow.circlepath" size={16} color={TealColors.primary} />
+            <Text style={[styles.historyButtonText, { color: TealColors.primary }]}>
+              View report history
+            </Text>
+          </Pressable>
         </View>
         <View style={styles.quickRow}>
           {quickPresets.map((preset) => (
@@ -414,23 +495,63 @@ export default function ReportScreen() {
         </View>
 
         {confirmation ? (
-          <ThemedText style={styles.confirmationText}>
-            {confirmation}
-          </ThemedText>
+          <View style={[styles.confirmationCard, { borderColor, backgroundColor: isDarkMode ? "#122024" : "#f1f9f6" }]}>
+            <ThemedText style={styles.confirmationText}>
+              {confirmation}
+            </ThemedText>
+            <Pressable
+              style={[styles.confirmationButton, { backgroundColor: TealColors.primary }]}
+              onPress={() => {
+                if (lastIncidentChat) {
+                  router.push({
+                    pathname: "/chat/[id]",
+                    params: lastIncidentChat,
+                  } as never);
+                }
+              }}
+            >
+              <IconSymbol name="bubble.right" size={16} color="#fff" />
+              <Text style={styles.confirmationButtonText}>Open chat</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {!confirmation && lastIncidentChat ? (
+          <Pressable
+            style={[styles.resumeChip, { borderColor: TealColors.primary, backgroundColor: isDarkMode ? "#102026" : "#e8f6f2" }]}
+            onPress={() =>
+              router.push({
+                pathname: "/chat/[id]",
+                params: lastIncidentChat,
+              } as never)
+            }
+          >
+            <IconSymbol name="arrow.uturn.right" size={14} color={TealColors.primary} />
+            <Text style={[styles.resumeText, { color: TealColors.primary }]}>
+              Resume last incident chat
+            </Text>
+          </Pressable>
         ) : null}
       </ScrollView>
       <Pressable
         style={[styles.floatingButton, { backgroundColor: "#e53935" }]}
         onPress={handleSubmit}
-        disabled={!summary.trim()}
+        disabled={!summary.trim() || isSubmitting}
       >
-        <IconSymbol
-          name="exclamationmark.triangle.fill"
-          size={20}
-          color="#fff"
-        />
+        {isSubmitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <IconSymbol
+            name="exclamationmark.triangle.fill"
+            size={20}
+            color="#fff"
+          />
+        )}
         <Text style={styles.floatingText}>
-          {summary.trim() ? "Submit Report" : "Add summary to submit"}
+          {isSubmitting
+            ? "Sending..."
+            : summary.trim()
+              ? "Submit Report"
+              : "Add summary to submit"}
         </Text>
       </Pressable>
     </SafeAreaView>
@@ -482,6 +603,21 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: "#666",
+  },
+  historyButton: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  historyButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   sectionCard: {
     borderRadius: 20,
@@ -596,11 +732,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
   },
-  confirmationText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#4caf50",
-  },
   quickRow: {
     flexDirection: "row",
     gap: 12,
@@ -664,5 +795,45 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+  confirmationCard: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  confirmationText: {
+    fontSize: 13,
+    color: "#2f9d63",
+  },
+  confirmationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  confirmationButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  resumeChip: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  resumeText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
