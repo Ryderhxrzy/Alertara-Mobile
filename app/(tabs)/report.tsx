@@ -1,7 +1,9 @@
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ThemedText } from "@/components/themed-text";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
+import * as Location from "expo-location";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,9 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useCallback, useEffect, useState } from "react";
 import MapView, { Marker } from "react-native-maps";
-import * as Location from "expo-location";
 
 type LatLng = {
   latitude: number;
@@ -55,28 +55,27 @@ export default function ReportScreen() {
   const [locationWarning, setLocationWarning] = useState("");
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
 
-  const background = isDarkMode ? Colors.dark.background : Colors.light.background;
+  const background = isDarkMode
+    ? Colors.dark.background
+    : Colors.light.background;
   const cardBackground = isDarkMode ? "#152126" : "#ffffff";
   const borderColor = isDarkMode ? "#1f2b32" : "#e6e6e6";
   const accent = TealColors.primary;
 
-  const refreshAddress = useCallback(
-    async (coords: LatLng) => {
-      try {
-        const addresses = await Location.reverseGeocodeAsync(coords);
-        if (addresses.length) {
-          setLocationNote(formatAddress(addresses[0]));
-          setLocationWarning("");
-          return;
-        }
-      } catch {
-        setLocationWarning("Precise address unavailable");
+  const refreshAddress = useCallback(async (coords: LatLng) => {
+    try {
+      const addresses = await Location.reverseGeocodeAsync(coords);
+      if (addresses.length) {
+        setLocationNote(formatAddress(addresses[0]));
+        setLocationWarning("");
+        return;
       }
+    } catch {
+      setLocationWarning("Precise address unavailable");
+    }
 
-      setLocationNote(formatCoordsDescription(coords));
-    },
-    []
-  );
+    setLocationNote(formatCoordsDescription(coords));
+  }, []);
 
   const applyManualCoords = async (coords: LatLng) => {
     setLocationCoords(coords);
@@ -96,7 +95,7 @@ export default function ReportScreen() {
     { label: "Medical Alert", type: "medical", severity: "High" },
   ];
 
-  const handlePreset = (preset: typeof quickPresets[number]) => {
+  const handlePreset = (preset: (typeof quickPresets)[number]) => {
     setSelectedType(preset.type);
     setSeverity(preset.severity as "Low" | "Medium" | "High");
     setSummary(`${preset.label} – urgent`);
@@ -159,15 +158,29 @@ export default function ReportScreen() {
     return () => {
       subscribed = false;
     };
-    }, [refreshAddress]);
+  }, [refreshAddress]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: background }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={[styles.heroCard, { backgroundColor: isDarkMode ? "#0f172a" : "#e8f5f2" }]}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            styles.heroCard,
+            { backgroundColor: isDarkMode ? "#0f172a" : "#e8f5f2" },
+          ]}
+        >
           <View style={styles.heroHeader}>
-            <IconSymbol size={28} name="exclamationmark.triangle" color={TealColors.primary} />
-            <ThemedText style={styles.heroKicker}>Step 1 of 3 · Incident Details</ThemedText>
+            <IconSymbol
+              size={28}
+              name="exclamationmark.triangle"
+              color={TealColors.primary}
+            />
+            <ThemedText style={styles.heroKicker}>
+              Step 1 of 3 · Incident Details
+            </ThemedText>
           </View>
           <ThemedText type="title" style={styles.title}>
             Report an Incident
@@ -180,14 +193,25 @@ export default function ReportScreen() {
           {quickPresets.map((preset) => (
             <Pressable
               key={preset.label}
-              style={[styles.quickButton, { borderColor, backgroundColor: isDarkMode ? "#102026" : "#f7fbff" }]}
+              style={[
+                styles.quickButton,
+                {
+                  borderColor,
+                  backgroundColor: isDarkMode ? "#102026" : "#f7fbff",
+                },
+              ]}
               onPress={() => handlePreset(preset)}
             >
               <ThemedText style={styles.quickText}>{preset.label}</ThemedText>
             </Pressable>
           ))}
         </View>
-        <View style={[styles.sectionCard, { backgroundColor: cardBackground, borderColor }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: cardBackground, borderColor },
+          ]}
+        >
           <ThemedText style={styles.sectionTitle}>Incident Type</ThemedText>
           <View style={styles.typeRow}>
             {incidentTypes.map((type) => {
@@ -199,27 +223,49 @@ export default function ReportScreen() {
                     styles.typePill,
                     {
                       borderColor: active ? type.color : "#c4c8d5",
-                      backgroundColor: active ? `${type.color}22` : "transparent",
+                      backgroundColor: active
+                        ? `${type.color}22`
+                        : "transparent",
                     },
                   ]}
                   onPress={() => setSelectedType(type.id)}
                 >
-                  <IconSymbol name={type.icon} size={20} color={active ? type.color : "#555"} />
-                  <ThemedText style={[styles.typeLabel, active && { color: type.color }]}>{type.label}</ThemedText>
+                  <IconSymbol
+                    name={type.icon}
+                    size={20}
+                    color={active ? type.color : "#555"}
+                  />
+                  <ThemedText
+                    style={[styles.typeLabel, active && { color: type.color }]}
+                  >
+                    {type.label}
+                  </ThemedText>
                 </Pressable>
               );
             })}
           </View>
         </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: cardBackground, borderColor }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: cardBackground, borderColor },
+          ]}
+        >
           <ThemedText style={styles.sectionTitle}>Location</ThemedText>
           <View style={styles.locationRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.locationLabel}>Current location</ThemedText>
-              <ThemedText style={styles.locationValue}>{locationNote}</ThemedText>
+              <ThemedText style={styles.locationLabel}>
+                Current location
+              </ThemedText>
+              <ThemedText style={styles.locationValue}>
+                {locationNote}
+              </ThemedText>
             </View>
-            <Pressable style={[styles.refreshChip, { borderColor: accent }]} onPress={handleRefreshLocation}>
+            <Pressable
+              style={[styles.refreshChip, { borderColor: accent }]}
+              onPress={handleRefreshLocation}
+            >
               {isRefreshingLocation ? (
                 <ActivityIndicator size="small" color={accent} />
               ) : (
@@ -259,35 +305,68 @@ export default function ReportScreen() {
           {locationWarning ? (
             <Text style={styles.locationWarning}>{locationWarning}</Text>
           ) : null}
-          <Pressable style={[styles.lockButton, { borderColor }]} onPress={handleLocationToggle}>
-            <IconSymbol name={manualLock ? "lock.open" : "lock"} size={16} color={accent} />
-            <Text style={styles.lockText}>{manualLock ? "Manual pin" : "Auto GPS"}</Text>
+          <Pressable
+            style={[styles.lockButton, { borderColor }]}
+            onPress={handleLocationToggle}
+          >
+            <IconSymbol
+              name={manualLock ? "lock.open" : "lock"}
+              size={16}
+              color={accent}
+            />
+            <Text style={styles.lockText}>
+              {manualLock ? "Manual pin" : "Auto GPS"}
+            </Text>
           </Pressable>
         </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: cardBackground, borderColor }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: cardBackground, borderColor },
+          ]}
+        >
           <ThemedText style={styles.sectionTitle}>Severity</ThemedText>
           <View style={styles.severityRow}>
             {["Low", "Medium", "High"].map((level) => {
               const active = severity === level;
-              const color = level === "High" ? "#e53935" : level === "Medium" ? "#ff9800" : "#4caf50";
+              const color =
+                level === "High"
+                  ? "#e53935"
+                  : level === "Medium"
+                    ? "#ff9800"
+                    : "#4caf50";
               return (
                 <Pressable
                   key={level}
-                  onPress={() => setSeverity(level as "Low" | "Medium" | "High")}
+                  onPress={() =>
+                    setSeverity(level as "Low" | "Medium" | "High")
+                  }
                   style={[
                     styles.severityPill,
-                    { borderColor: color, backgroundColor: active ? `${color}22` : "transparent" },
+                    {
+                      borderColor: color,
+                      backgroundColor: active ? `${color}22` : "transparent",
+                    },
                   ]}
                 >
-                  <ThemedText style={[styles.severityText, active && { color }]}>{level}</ThemedText>
+                  <ThemedText
+                    style={[styles.severityText, active && { color }]}
+                  >
+                    {level}
+                  </ThemedText>
                 </Pressable>
               );
             })}
           </View>
         </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: cardBackground, borderColor }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: cardBackground, borderColor },
+          ]}
+        >
           <ThemedText style={styles.sectionTitle}>Add Details</ThemedText>
           <TextInput
             style={[styles.input, { color: isDarkMode ? "#fff" : "#111" }]}
@@ -299,7 +378,11 @@ export default function ReportScreen() {
           />
           <Text style={styles.helperText}>{summary.length}/140 characters</Text>
           <TextInput
-            style={[styles.input, styles.detailsInput, { color: isDarkMode ? "#fff" : "#111" }]}
+            style={[
+              styles.input,
+              styles.detailsInput,
+              { color: isDarkMode ? "#fff" : "#111" },
+            ]}
             value={details}
             onChangeText={setDetails}
             placeholder="Optional notes"
@@ -307,29 +390,48 @@ export default function ReportScreen() {
             multiline
           />
           <Text style={styles.helperText}>
-            Include who/what, visible hazards, people affected, and access points.
+            Include who/what, visible hazards, people affected, and access
+            points.
           </Text>
-          <Pressable style={[styles.attachButton, { borderColor }]} onPress={() => setShowDetails((prev) => !prev)}>
-            <IconSymbol name="camera" size={18} color={isDarkMode ? "#fff" : "#111"} />
-            <Text style={styles.attachText}>{showDetails ? "Hide media" : "Attach photo / video"}</Text>
+          <Pressable
+            style={[styles.attachButton, { borderColor }]}
+            onPress={() => setShowDetails((prev) => !prev)}
+          >
+            <IconSymbol
+              name="camera"
+              size={18}
+              color={isDarkMode ? "#fff" : "#111"}
+            />
+            <Text style={styles.attachText}>
+              {showDetails ? "Hide media" : "Attach photo / video"}
+            </Text>
           </Pressable>
           {showDetails && (
-            <ThemedText style={styles.noteText}>Camera ready · files stored locally until submit</ThemedText>
+            <ThemedText style={styles.noteText}>
+              Camera ready · files stored locally until submit
+            </ThemedText>
           )}
         </View>
 
         {confirmation ? (
-          <ThemedText style={styles.confirmationText}>{confirmation}</ThemedText>
+          <ThemedText style={styles.confirmationText}>
+            {confirmation}
+          </ThemedText>
         ) : null}
-
       </ScrollView>
       <Pressable
         style={[styles.floatingButton, { backgroundColor: "#e53935" }]}
         onPress={handleSubmit}
         disabled={!summary.trim()}
       >
-        <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#fff" />
-        <Text style={styles.floatingText}>{summary.trim() ? "Submit Report" : "Add summary to submit"}</Text>
+        <IconSymbol
+          name="exclamationmark.triangle.fill"
+          size={20}
+          color="#fff"
+        />
+        <Text style={styles.floatingText}>
+          {summary.trim() ? "Submit Report" : "Add summary to submit"}
+        </Text>
       </Pressable>
     </SafeAreaView>
   );

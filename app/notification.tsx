@@ -1,6 +1,6 @@
-import { ThemedText } from "@/components/themed-text";
+﻿import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { Colors, TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons, FontAwesome } from "@expo/vector-icons";
@@ -92,7 +92,7 @@ const notificationsByCategory: Record<string, NotificationItem[]> = {
     },
     {
       id: 'weather',
-      category: 'Alert',
+      category: 'Weather',
       icon: 'weather-partly-snowy-rainy',
       title: '[MOCK] CRITICAL WEATHER ALERT',
       type: 'Emergency Bulletin',
@@ -109,7 +109,7 @@ const notificationsByCategory: Record<string, NotificationItem[]> = {
     },
     {
       id: 'fire-alert',
-      category: 'Alert',
+      category: 'Fire',
       icon: 'flame',
       title: 'Building Fire Watch',
       type: 'Emergency Bulletin',
@@ -467,6 +467,12 @@ export default function NotificationScreen() {
 
   const currentNotifications = notificationsByCategory[selectedCategory] ?? [];
 
+  const handleGeneralChat = () =>
+    router.push({
+      pathname: "/chat/[id]",
+      params: { id: "general", title: "General Support", category: "General" },
+    } as never);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: screenBackground }]}>
       <ScrollView
@@ -510,32 +516,32 @@ export default function NotificationScreen() {
                         : '#ffffff',
                   },
                 ]}
-                onPress={() => {
-                  setFilterVisible(false);
-                  setSearchVisible(prev => !prev);
-                }}
-              >
-                <IconSymbol name="search" size={20} color={highlightColor} />
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  styles.iconSpacing,
-                  {
-                    backgroundColor: pressed
-                      ? '#d9e5e1'
-                      : isDarkMode
-                        ? '#1f2d31'
-                        : '#ffffff',
-                  },
-                ]}
-                onPress={() => {
-                  setSearchVisible(false);
-                  setFilterVisible(prev => !prev);
-                }}
-              >
-                <FontAwesome name="filter" size={20} color={highlightColor} />
-              </Pressable>
+              onPress={() => {
+                setFilterVisible(false);
+                setSearchVisible(prev => !prev);
+              }}
+            >
+              <IconSymbol name="search" size={20} color={highlightColor} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconButton,
+                styles.iconSpacing,
+                {
+                  backgroundColor: pressed
+                    ? '#d9e5e1'
+                    : isDarkMode
+                      ? '#1f2d31'
+                      : '#ffffff',
+                },
+              ]}
+              onPress={() => {
+                setSearchVisible(false);
+                setFilterVisible(prev => !prev);
+              }}
+            >
+              <FontAwesome name="filter" size={20} color={highlightColor} />
+            </Pressable>
             </View>
           </View>
 
@@ -692,6 +698,14 @@ export default function NotificationScreen() {
           />
         ))}
       </ScrollView>
+
+      <Pressable
+        style={styles.messageButton}
+        onPress={handleGeneralChat}
+        accessibilityLabel="Open general support chat"
+      >
+        <IconSymbol size={24} name="bubble.right" color="#fff" />
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -994,4 +1008,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
   },
+  messageButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: TealColors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
 });
+
+
