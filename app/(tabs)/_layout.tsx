@@ -34,11 +34,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="notification"
+        name="map"
         options={{
-          title: "Alert & Notif",
+          title: "Map",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="bell" color={color} />
+            <IconSymbol size={28} name="map" color={color} />
           ),
         }}
       />
@@ -52,11 +52,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="map"
+        name="report"
         options={{
-          title: "Map",
+          title: "Report",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="map" color={color} />
+            <IconSymbol size={28} name="exclamationmark.triangle" color={color} />
           ),
         }}
       />

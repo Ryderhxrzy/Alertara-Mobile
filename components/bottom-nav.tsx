@@ -1,4 +1,5 @@
 import { TealColors } from "@/constants/theme";
+import { useTranslate } from "@/hooks/useTranslate";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React from "react";
 import {
@@ -16,6 +17,7 @@ export function BottomNav({
   descriptors,
   navigation,
 }: BottomTabBarProps) {
+  const { t } = useTranslate();
   const callIndex = state.routes.findIndex((r) => r.name === "call");
   const adjacentSpacing = 40; // spacing reserved on either side of call button
 
@@ -24,7 +26,18 @@ export function BottomNav({
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         // we only show icons for visible tabs
-        const label = options.title || route.name;
+        const label =
+          route.name === "index"
+            ? t("nav.home", "Home")
+            : route.name === "map"
+              ? t("nav.map", "Map")
+              : route.name === "report"
+                ? t("nav.report", "Report")
+                : route.name === "me"
+                  ? t("nav.profile", "Profile")
+                  : route.name === "call"
+                    ? t("nav.call", "Call")
+                    : options.title || route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -57,10 +70,10 @@ export function BottomNav({
             ? isFocused
               ? "house.fill"
               : "house"
-            : route.name === "notification"
+            : route.name === "report"
               ? isFocused
-                ? "bell.fill"
-                : "bell"
+                ? "exclamationmark.triangle.fill"
+                : "exclamationmark.triangle"
               : route.name === "map"
                 ? isFocused
                   ? "map.fill"
@@ -92,12 +105,17 @@ export function BottomNav({
             style={[styles.tab, extraStyle]}
           >
             <View style={styles.tabContent}>
-              <IconSymbol
-                size={24}
-                name={iconName as any}
-                color={isFocused ? TealColors.primary : "#888"}
-              />
+              <View style={styles.iconWrapper}>
+                <IconSymbol
+                  size={24}
+                  name={iconName as any}
+                  color={isFocused ? TealColors.primary : "#888"}
+                />
+              </View>
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
                 style={[
                   styles.label,
                   isFocused && { color: TealColors.primary },
@@ -135,6 +153,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     // explicitly stack icon above text
     flexDirection: "column",
+  },
+  iconWrapper: {
+    position: "relative",
   },
   label: {
     fontSize: 12,
