@@ -8,11 +8,9 @@ import {
   DARK_BORDER,
   DARK_CARD_BG,
   DARK_ICON,
-  DARK_TEXT,
   LIGHT_BORDER,
   LIGHT_CARD_BG,
   LIGHT_ICON,
-  LIGHT_TEXT,
   TealColors,
 } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
@@ -81,8 +79,97 @@ export default function HomeScreen() {
             </View>
           </View>
           <ThemedText style={styles.subText}>
-            Check our latest services and updates
+            Your main services and role-based systems in one place
           </ThemedText>
+        </View>
+
+        {/* Main Services */}
+        <View style={styles.servicesSection}>
+          <View style={styles.sectionTitleContainer}>
+            <ThemedText style={styles.sectionTitle}>Dashboard</ThemedText>
+            <IconSymbol
+              size={20}
+              name="chevron.right"
+              color={isDarkMode ? DARK_ICON : LIGHT_ICON}
+            />
+          </View>
+
+          <View style={styles.servicesGrid}>
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/report")}
+            >
+              <View
+                style={[
+                  styles.serviceIconCircle,
+                  { backgroundColor: "#F39C12" },
+                ]}
+              >
+                <IconSymbol size={28} name="exclamationmark.triangle" color="#fff" />
+              </View>
+              <ThemedText style={styles.serviceCardText}>Report</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/map")}
+            >
+              <View
+                style={[
+                  styles.serviceIconCircle,
+                  { backgroundColor: "#E74C3C" },
+                ]}
+              >
+                <IconSymbol size={28} name="location" color="#fff" />
+              </View>
+              <ThemedText style={styles.serviceCardText}>Map</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/submit-tip")}
+            >
+              <View
+                style={[
+                  styles.serviceIconCircle,
+                  { backgroundColor: "#3498DB" },
+                ]}
+              >
+                <IconSymbol size={28} name="paperplane.fill" color="#fff" />
+              </View>
+              <ThemedText style={styles.serviceCardText}>Tip</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/notification")}
+            >
+              <View
+                style={[
+                  styles.serviceIconCircle,
+                  { backgroundColor: TealColors.primary },
+                ]}
+              >
+                <IconSymbol size={28} name="bell" color="#fff" />
+              </View>
+              <ThemedText style={styles.serviceCardText}>Alerts</ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.serviceIconOnly}
+              onPress={() => router.push("/me")}
+            >
+              <View
+                style={[
+                  styles.serviceIconCircle,
+                  { backgroundColor: "#9B59B6" },
+                ]}
+              >
+                <IconSymbol size={28} name="person" color="#fff" />
+              </View>
+              <ThemedText style={styles.serviceCardText}>Me</ThemedText>
+            </Pressable>
+          </View>
         </View>
 
         {/* Central Command Section */}
@@ -178,114 +265,6 @@ export default function HomeScreen() {
                 </View>
               </Pressable>
             ))}
-          </View>
-        </View>
-
-        {/* Quick Services Section */}
-        <View style={styles.servicesSection}>
-          <View style={styles.sectionTitleContainer}>
-            <ThemedText style={styles.sectionTitle}>Quick Services</ThemedText>
-            <IconSymbol
-              size={20}
-              name="chevron.right"
-              color={isDarkMode ? DARK_ICON : LIGHT_ICON}
-            />
-          </View>
-          <View style={styles.servicesGrid}>
-            <Pressable
-              style={styles.serviceIconOnly}
-              onPress={() => router.push("/map")}
-            >
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#E74C3C" },
-                ]}
-              >
-                <IconSymbol size={28} name="location" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Crime Map</ThemedText>
-            </Pressable>
-            <Pressable
-              style={styles.serviceIconOnly}
-              onPress={() => router.push("/submit-tip")}
-            >
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#3498DB" },
-                ]}
-              >
-                <IconSymbol size={28} name="paperplane.fill" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Submit Tip</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: TealColors.primary },
-                ]}
-              >
-                <IconSymbol size={28} name="bell" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Alerts</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#9B59B6" },
-                ]}
-              >
-                <IconSymbol size={28} name="person" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Profile</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#27AE60" },
-                ]}
-              >
-                <IconSymbol size={28} name="info" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Info</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#F39C12" },
-                ]}
-              >
-                <IconSymbol size={28} name="gear" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Settings</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#16A085" },
-                ]}
-              >
-                <IconSymbol size={28} name="house" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Home</ThemedText>
-            </Pressable>
-            <Pressable style={styles.serviceIconOnly}>
-              <View
-                style={[
-                  styles.serviceIconCircle,
-                  { backgroundColor: "#8E44AD" },
-                ]}
-              >
-                <IconSymbol size={28} name="paperplane" color="#fff" />
-              </View>
-              <ThemedText style={styles.serviceCardText}>Share</ThemedText>
-            </Pressable>
           </View>
         </View>
 
