@@ -18,26 +18,36 @@ import { useAuth } from "@/context/auth-context";
 import { LanguageOption, usePreferences } from "@/context/preferences-context";
 import { useTheme } from "@/context/theme-context";
 import { useTranslate } from "@/hooks/useTranslate";
-import React, { useState } from "react";
+import { useGlobalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     Alert,
+    InteractionManager,
     Modal,
     Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    View,
-} from "react-native";
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
-export default function MeScreen() {
-  const { isDarkMode, toggleTheme } = useTheme();
-  const { userToken, signOut } = useAuth();
+export default function MeScreen() {
+  const { isDarkMode, toggleTheme } = useTheme();
+  const { userToken, signOut } = useAuth();
+  const { scrollTo } = useGlobalSearchParams<{ scrollTo?: string }>();
+  const scrollTarget = Array.isArray(scrollTo) ? scrollTo[0] : scrollTo;
+  const scrollRef = useRef<ScrollView>(null);
+  const languageAnchorY = useRef<number | null>(null);
+  const languageAnchorRef = useRef<View>(null);
+  const didAutoScroll = useRef(false);
+  const scrollRetryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     language,
     setLanguage,
-    alertPreferences,
-    updateAlertPreferences,
+    alertPreferences,
+    updateAlertPreferences,
     incidentHistory,
   } = usePreferences();
   const { t } = useTranslate();
@@ -130,6 +140,74 @@ export default function MeScreen() {
       ],
     );
   };
+
+  useEffect(() => {
+    // If the route param changes, allow auto-scroll again.
+    didAutoScroll.current = false;
+    if (scrollRetryTimeout.current) {
+      clearTimeout(scrollRetryTimeout.current);
+      scrollRetryTimeout.current = null;
+    }
+  }, [scrollTarget]);
+
+  const maybeScrollToLanguage = useCallback(() => {
+    if (didAutoScroll.current) return;
+    if (scrollTarget !== "language") return;
+    // Prefer a direct measure against the ScrollView to avoid layout-y mismatch.
+    const anchor = languageAnchorRef.current;
+    const scroller = scrollRef.current;
+    if (!anchor || !scroller) return;
+
+    const attemptScroll = (triesLeft: number) => {
+      if (didAutoScroll.current) return;
+      if (scrollTarget !== "language") return;
+      const a = languageAnchorRef.current;
+      const s = scrollRef.current;
+      if (!a || !s) {
+        if (triesLeft <= 0) return;
+        scrollRetryTimeout.current = setTimeout(
+          () => attemptScroll(triesLeft - 1),
+          90,
+        );
+        return;
+      }
+
+      a.measureLayout(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        s as any,
+        (_x, y) => {
+          didAutoScroll.current = true;
+          // Direct jump: show the Preferences section immediately.
+          // Extra offset so the "PREFERENCES" section header is clearly visible.
+          s.scrollTo({ y: Math.max(y - 48, 0), animated: false });
+        },
+        () => {
+          if (triesLeft <= 0) return;
+          scrollRetryTimeout.current = setTimeout(
+            () => attemptScroll(triesLeft - 1),
+            90,
+          );
+        },
+      );
+    };
+
+    // Wait for navigation + layout to settle; then retry a few times if needed.
+    InteractionManager.runAfterInteractions(() => attemptScroll(10));
+  }, [scrollTarget]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // If we're already laid out, scroll immediately on focus.
+      maybeScrollToLanguage();
+      return () => {};
+    }, [maybeScrollToLanguage]),
+  );
+
+  useEffect(() => {
+    // Fallback: when coming from another screen, focus+layout timing can vary.
+    // This ensures we still scroll even if the first attempt was too early.
+    maybeScrollToLanguage();
+  }, [maybeScrollToLanguage]);
 
   return (
     <SafeAreaView
@@ -143,8 +221,9 @@ export default function MeScreen() {
       ]}
     >
       <Header />
-      <ScrollView
-        style={[
+      <ScrollView
+        ref={scrollRef}
+        style={[
           styles.content,
           {
             backgroundColor: isDarkMode
@@ -262,7 +341,14 @@ export default function MeScreen() {
 
         {/* Preferences */}
         <SettingsSection title="PREFERENCES">
-          <SettingsSelect
+          <View
+            ref={languageAnchorRef}
+            onLayout={(e) => {
+              languageAnchorY.current = e.nativeEvent.layout.y;
+              maybeScrollToLanguage();
+            }}
+          >
+            <SettingsSelect
             label={t("settings.language.label", "Language")}
             description={t(
               "settings.language.description",
@@ -277,8 +363,9 @@ export default function MeScreen() {
               { label: languageLabels.tl, value: "tl" },
             ]}
             onSelect={handleLanguageSelect}
-          />
-          <SettingsDivider />
+            />
+          </View>
+          <SettingsDivider />
           <SettingsToggle
             label="Dark Theme"
             description={

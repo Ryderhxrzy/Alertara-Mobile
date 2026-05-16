@@ -21,6 +21,7 @@ const MAPPING = {
   "paperplane.fill": "paper-plane",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-forward",
+  "chevron.down": "chevron-down",
   house: "home-outline",
   "bell.fill": "notifications",
   bell: "notifications-outline",
@@ -81,6 +82,10 @@ const MAPPING = {
   "arrow.backward": "arrow-back",
   ellipsis: "ellipsis-horizontal",
   "list.bullet": "list-outline",
+  "tray.full": "file-tray-full-outline",
+  "bubble.left.and.bubble.right": "chatbubbles-outline",
+  "person.crop.circle.badge.checkmark": "person-circle-outline",
+  "doc.text.magnifyingglass": "document-text-outline",
 } as unknown as IconMapping;
 
 /**

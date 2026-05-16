@@ -9,6 +9,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
+  Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -17,6 +19,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker } from "react-native-maps";
 
 type LatLng = {
@@ -49,9 +52,11 @@ export default function ReportScreen() {
   const { isDarkMode } = useTheme();
   const { t } = useTranslate();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [summary, setSummary] = useState("");
   const [details, setDetails] = useState("");
   const [severity, setSeverity] = useState<"Low" | "Medium" | "High">("Medium");
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [locationNote, setLocationNote] = useState("Detecting location...");
   const [showDetails, setShowDetails] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -74,6 +79,8 @@ export default function ReportScreen() {
   const cardBackground = isDarkMode ? "#152126" : "#ffffff";
   const borderColor = isDarkMode ? "#1f2b32" : "#e6e6e6";
   const accent = TealColors.primary;
+  const textColor = isDarkMode ? Colors.dark.text : Colors.light.text;
+  const tabBarHeight = (Platform.OS === "ios" ? 80 : 60) + insets.bottom;
 
   const refreshAddress = useCallback(async (coords: LatLng) => {
     try {
@@ -103,6 +110,8 @@ export default function ReportScreen() {
     { id: "flood", label: t("type.flood"), icon: "drop", color: "#3a86ff" },
   ];
   const [selectedType, setSelectedType] = useState(incidentTypes[0].id);
+  const selectedTypeMeta =
+    incidentTypes.find((t) => t.id === selectedType) ?? incidentTypes[0];
   const quickPresets = [
     { label: t("report.quickFire"), type: "fire", severity: "High" },
     { label: t("report.quickMedical"), type: "medical", severity: "High" },
@@ -237,7 +246,12 @@ export default function ReportScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: background }]}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          // Ensure the last fields aren't hidden behind the floating submit CTA
+          // and the bottom tab bar.
+          { paddingBottom: tabBarHeight + 56 + 6 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -296,38 +310,106 @@ export default function ReportScreen() {
           ]}
         >
           <ThemedText style={styles.sectionTitle}>{t("report.incidentType")}</ThemedText>
-          <View style={styles.typeRow}>
-            {incidentTypes.map((type) => {
-              const active = selectedType === type.id;
-              return (
-                <Pressable
-                  key={type.id}
-                  style={[
-                    styles.typePill,
-                    {
-                      borderColor: active ? type.color : "#c4c8d5",
-                      backgroundColor: active
-                        ? `${type.color}22`
-                        : "transparent",
-                    },
-                  ]}
-                  onPress={() => setSelectedType(type.id)}
-                >
-                  <IconSymbol
-                    name={type.icon}
-                    size={20}
-                    color={active ? type.color : "#555"}
-                  />
-                  <ThemedText
-                    style={[styles.typeLabel, active && { color: type.color }]}
-                  >
-                    {type.label}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Pressable
+            style={[
+              styles.typeSelect,
+              {
+                borderColor,
+                backgroundColor: isDarkMode ? "#0f1b20" : "#f8fafc",
+              },
+            ]}
+            onPress={() => setTypePickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t("report.incidentType")}
+          >
+            <View style={styles.typeSelectLeft}>
+              <View
+                style={[
+                  styles.typeIconBubble,
+                  {
+                    backgroundColor: `${selectedTypeMeta.color}22`,
+                    borderColor: `${selectedTypeMeta.color}55`,
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name={selectedTypeMeta.icon}
+                  size={18}
+                  color={selectedTypeMeta.color}
+                />
+              </View>
+              <ThemedText style={[styles.typeSelectLabel, { color: textColor }]}>
+                {selectedTypeMeta.label}
+              </ThemedText>
+            </View>
+            <IconSymbol
+              name="chevron.down"
+              size={16}
+              color={isDarkMode ? "#cbd5e1" : "#475569"}
+            />
+          </Pressable>
+          <Text style={styles.helperText}>{t("report.typeHelp", "Tap to change the incident type.")}</Text>
         </View>
+
+        <Modal
+          visible={typePickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setTypePickerOpen(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setTypePickerOpen(false)}
+          >
+            <Pressable
+              style={[
+                styles.modalCard,
+                { backgroundColor: cardBackground, borderColor },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <ThemedText style={[styles.modalTitle, { color: textColor }]}>
+                {t("report.incidentType")}
+              </ThemedText>
+              {incidentTypes.map((type) => {
+                const active = selectedType === type.id;
+                return (
+                  <Pressable
+                    key={type.id}
+                    style={[
+                      styles.modalItem,
+                      {
+                        borderColor: active ? type.color : borderColor,
+                        backgroundColor: active ? `${type.color}18` : "transparent",
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedType(type.id);
+                      setTypePickerOpen(false);
+                    }}
+                  >
+                    <View style={styles.modalItemLeft}>
+                      <View
+                        style={[
+                          styles.modalIconBubble,
+                          { backgroundColor: `${type.color}22` },
+                        ]}
+                      >
+                        <IconSymbol name={type.icon} size={18} color={type.color} />
+                      </View>
+                      <ThemedText style={[styles.modalItemLabel, { color: textColor }]}>
+                        {type.label}
+                      </ThemedText>
+                    </View>
+                    {active ? (
+                      <IconSymbol name="checkmark" size={16} color={type.color} />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <View
           style={[
@@ -538,7 +620,14 @@ export default function ReportScreen() {
         ) : null}
       </ScrollView>
       <Pressable
-        style={[styles.floatingButton, { backgroundColor: "#e53935" }]}
+        style={[
+          styles.floatingButton,
+          {
+            backgroundColor: "#e53935",
+            // Keep the CTA clearly above the bottom tab bar + safe area.
+            bottom: tabBarHeight + -30,
+          },
+        ]}
         onPress={handleSubmit}
         disabled={!summary.trim() || isSubmitting}
       >
@@ -570,7 +659,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 16,
-    paddingBottom: 140,
+    paddingBottom: 140, // overridden dynamically to account for tab bar + safe area
   },
   hero: {
     flexDirection: "row",
@@ -639,6 +728,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+  },
+  typeSelect: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  typeSelectLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  typeIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  typeSelectLabel: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   typePill: {
     flexDirection: "row",
@@ -776,6 +891,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#8a8a8a",
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+    padding: 14,
+  },
+  modalCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  modalItem: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  modalIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalItemLabel: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   mapPreview: {
     height: 190,

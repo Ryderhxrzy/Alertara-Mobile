@@ -4,26 +4,85 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { useRouter } from "expo-router";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, View } from "react-native";
 
-const modules = [
-  { title: "Mass Notification", icon: "antenna.radiowaves.left.and.right", route: "/central-command/emergency-communication/mass-notification", desc: "Create and send alerts across SMS, Email, PA." },
-  { title: "Alert Catalog", icon: "tray.full", route: "/central-command/emergency-communication/alert-catalog", desc: "Reusable alert templates and categorizations." },
-  { title: "Two-Way Feedback", icon: "bubble.left.and.bubble.right", route: "/central-command/emergency-communication/citizen-feedback", desc: "Collect acknowledgements and citizen status." },
-  { title: "Language Support", icon: "globe", route: "/central-command/emergency-communication/language-support", desc: "Manage translations and multilingual delivery." },
-  { title: "Subscriptions", icon: "person.crop.circle.badge.checkmark", route: "/central-command/emergency-communication/subscriptions", desc: "Opt-ins, channels, and preferences." },
-  { title: "Audit Log", icon: "doc.text.magnifyingglass", route: "/central-command/emergency-communication/audit-log", desc: "Delivery history, status, and accountability." },
-];
+type ModuleCard = {
+  title: string;
+  icon: string;
+  desc: string;
+  access: "user" | "admin";
+  // For user-side routing. For admin modules, this is what we suggest instead.
+  userRoute: string;
+  userCtaLabel: string;
+};
 
 export default function EcsHome() {
   const { isDarkMode } = useTheme();
   const router = useRouter();
+  const [locked, setLocked] = useState<ModuleCard | null>(null);
   const bg = isDarkMode ? Colors.dark.background : Colors.light.background;
   const cardBg = isDarkMode ? "#1f2933" : "#ffffff";
   const text = isDarkMode ? Colors.dark.text : Colors.light.text;
   const muted = isDarkMode ? "#cbd5e1" : "#555";
   const border = isDarkMode ? "#334155" : "#e2e5ea";
   const accent = "#16a34a";
+
+  const modules: ModuleCard[] = useMemo(
+    () => [
+      // Admin-side modules (show "what this is", then send users to the right feature)
+      {
+        title: "Mass Notification",
+        icon: "antenna.radiowaves.left.and.right",
+        desc: "Central Command uses this to send official alerts via SMS, email, and public channels.",
+        access: "admin",
+        userRoute: "/notification",
+        userCtaLabel: "View Alerts Feed",
+      },
+      {
+        title: "Alert Catalog",
+        icon: "tray.full",
+        desc: "Central Command maintains templates and categories for consistent emergency messaging.",
+        access: "admin",
+        userRoute: "/about",
+        userCtaLabel: "See App Info",
+      },
+      // User-side modules (direct navigation)
+      {
+        title: "Two-Way Feedback",
+        icon: "bubble.left.and.bubble.right",
+        desc: "Report an incident and chat for instructions, updates, and next steps.",
+        access: "user",
+        userRoute: "/report",
+        userCtaLabel: "Report Incident",
+      },
+      {
+        title: "Language Support",
+        icon: "globe",
+        desc: "Change language and region settings for a better experience.",
+        access: "user",
+        userRoute: "/me",
+        userCtaLabel: "Change Language",
+      },
+      {
+        title: "Subscriptions",
+        icon: "person.crop.circle.badge.checkmark",
+        desc: "Control which alerts you receive and how you receive them.",
+        access: "user",
+        userRoute: "/me",
+        userCtaLabel: "Manage Preferences",
+      },
+      {
+        title: "My History",
+        icon: "doc.text.magnifyingglass",
+        desc: "Review your past reports and conversations.",
+        access: "user",
+        userRoute: "/report-history",
+        userCtaLabel: "Open History",
+      },
+    ],
+    []
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
@@ -33,7 +92,10 @@ export default function EcsHome() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <ThemedText style={[styles.backText, { color: accent }]}>‹ Back</ThemedText>
+          <View style={styles.backRow}>
+            <IconSymbol name="arrow.left" size={16} color={accent} />
+            <ThemedText style={[styles.backText, { color: accent }]}>Back</ThemedText>
+          </View>
         </Pressable>
 
         <View style={styles.hero}>
@@ -53,37 +115,145 @@ export default function EcsHome() {
         <View style={styles.grid}>
           {modules.map((m) => (
             <Pressable
-              key={m.route}
+              key={m.title}
               style={[styles.card, { backgroundColor: cardBg, borderColor: border, shadowColor: "#000" }]}
-              onPress={() => router.push(m.route)}
+              onPress={() => {
+                if (m.access === "admin") {
+                  setLocked(m);
+                  return;
+                }
+                if (m.title === "Language Support") {
+                  // Switch to Profile and jump to the Language picker in Preferences.
+                  router.push({ pathname: "/me", params: { scrollTo: "language" } } as never);
+                  return;
+                }
+                router.push(m.userRoute as never);
+              }}
             >
               <View style={[styles.cardIcon, { backgroundColor: isDarkMode ? "rgba(22,163,74,0.16)" : "#e8f1ff" }]}>
                 <IconSymbol name={m.icon as any} size={20} color={accent} />
               </View>
               <ThemedText style={[styles.cardTitle, { color: text }]}>{m.title}</ThemedText>
               <ThemedText style={[styles.cardDesc, { color: muted }]}>{m.desc}</ThemedText>
-              <ThemedText style={[styles.cardAction, { color: accent }]}>Open</ThemedText>
+              <View style={styles.cardFooter}>
+                {m.access === "admin" ? (
+                  <ThemedText style={[styles.lockedPill, { color: accent }]}>
+                    Central Command
+                  </ThemedText>
+                ) : null}
+                <ThemedText style={[styles.cardAction, { color: accent }]}>
+                  {m.access === "admin" ? "Learn more" : "Open"}
+                </ThemedText>
+              </View>
             </Pressable>
           ))}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={!!locked}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLocked(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setLocked(null)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: cardBg, borderColor: border }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: "rgba(22,163,74,0.16)" }]}>
+                <IconSymbol name={(locked?.icon ?? "info") as any} size={18} color={accent} />
+              </View>
+              <ThemedText style={[styles.modalTitle, { color: text }]}>
+                {locked?.title}
+              </ThemedText>
+            </View>
+            <ThemedText style={[styles.modalDesc, { color: muted }]}>
+              {locked?.desc}
+            </ThemedText>
+            <ThemedText style={[styles.modalHint, { color: muted }]}>
+              This module is managed by Central Command staff. You can still access the user feature below.
+            </ThemedText>
+            <Pressable
+              style={[styles.modalCta, { backgroundColor: accent }]}
+              onPress={() => {
+                if (!locked) return;
+                const route = locked.userRoute;
+                setLocked(null);
+                if (locked.title === "Language Support") {
+                  router.push({ pathname: "/me", params: { scrollTo: "language" } } as never);
+                  return;
+                }
+                router.push(route as never);
+              }}
+            >
+              <ThemedText style={styles.modalCtaText}>
+                {locked?.userCtaLabel ?? "Open"}
+              </ThemedText>
+            </Pressable>
+            <Pressable style={styles.modalClose} onPress={() => setLocked(null)}>
+              <ThemedText style={[styles.modalCloseText, { color: accent }]}>Close</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, gap: 12 },
-  backBtn: { alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 6 },
-  backText: { fontSize: 16, fontWeight: "600" },
-  hero: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 4 },
-  heroIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { fontSize: 14 },
+  // Match the header's left/right inset (Header uses 14px).
+  content: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 16, gap: 12 },
+  backBtn: { alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 0 },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  backText: { fontSize: 16, fontWeight: "700" },
+  // Match the reference: icon aligns with the top of the title block (not vertically centered)
+  hero: { flexDirection: "row", gap: 12, alignItems: "flex-start", paddingTop: 2 },
+  heroIcon: { width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  title: { fontSize: 24, fontWeight: "800", lineHeight: 28 },
+  subtitle: { fontSize: 14, lineHeight: 18, marginTop: 2 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   card: { width: "48%", borderRadius: 16, borderWidth: 1, padding: 12, gap: 6 },
   cardIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 15, fontWeight: "700" },
   cardDesc: { fontSize: 12 },
-  cardAction: { fontSize: 12, fontWeight: "600" },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+    paddingTop: 2,
+  },
+  lockedPill: { fontSize: 11, fontWeight: "800" },
+  cardAction: { fontSize: 12, fontWeight: "700", marginLeft: "auto" },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: { fontSize: 16, fontWeight: "900" },
+  modalDesc: { fontSize: 13, lineHeight: 18 },
+  modalHint: { fontSize: 12, lineHeight: 16, opacity: 0.9 },
+  modalCta: { borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+  modalCtaText: { color: "#fff", fontSize: 14, fontWeight: "900" },
+  modalClose: { paddingVertical: 8, alignItems: "center" },
+  modalCloseText: { fontSize: 13, fontWeight: "800" },
 });

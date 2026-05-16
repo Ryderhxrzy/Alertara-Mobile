@@ -7,6 +7,7 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { PreferencesProvider } from "@/context/preferences-context";
@@ -104,12 +105,14 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <CustomThemeProvider>
-      <AuthProvider>
-        <PreferencesProvider>
-          <RootLayoutNav />
-        </PreferencesProvider>
-      </AuthProvider>
-    </CustomThemeProvider>
+    <SafeAreaProvider>
+      <CustomThemeProvider>
+        <AuthProvider>
+          <PreferencesProvider>
+            <RootLayoutNav />
+          </PreferencesProvider>
+        </AuthProvider>
+      </CustomThemeProvider>
+    </SafeAreaProvider>
   );
 }
