@@ -5,13 +5,24 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { TealColors } from "@/constants/theme";
 import { useTheme } from "@/context/theme-context";
 import { barangayWeatherPoints } from "@/data/barangay-weather-points";
-import { evacuationLocations, type EvacuationLocation, floodProneBarangays } from "@/data/evacuation-locations";
+import { evacuationLocations, type EvacuationLocation } from "@/data/evacuation-locations";
 import { LocationService } from "@/services/location/location-service";
 import type { UserLocation } from "@/types/crime";
 import { calculateDistance, formatDistance } from "@/utils/geo-utils";
 import { getQCBoundaryCoordinates } from "@/utils/qc-boundary";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 const EMPTY_CRIME_DATA: never[] = [];
 
@@ -42,11 +53,72 @@ interface WeatherMarkerData {
   weatherIcon: any;
   weatherIconUrl?: string | null;
   forecastTimeLabel: string | null;
+  weeklyForecast: DailyForecast[];
+  feelsLike: number | null;
+  humidity: number | null;
+  precipitationChance: number | null;
+}
+
+interface DailyForecast {
+  date: number;
+  label: string;
+  high: number;
+  low: number;
+  weatherLabel: string;
+  weatherIcon: any;
 }
 
 const WEATHER_REFRESH_MS = 10 * 60 * 1000;
 const WEATHER_REQUEST_TIMEOUT_MS = 12000;
 const WEATHER_REQUEST_RETRIES = 2;
+const OWM_ICON_BASE = "https://openweathermap.org/img/wn";
+const INFO_PANEL_MAX_HEIGHT = Dimensions.get("window").height * 0.42;
+const FALLBACK_CONDITIONS: {
+  label: string;
+  icon: any;
+  owmIcon: string;
+  temp: number;
+  feelsLike: number;
+  humidity: number;
+  precipitationChance: number;
+}[] = [
+  {
+    label: "Clear Sky",
+    icon: WeatherIcons.sunny,
+    owmIcon: "01d",
+    temp: 32,
+    feelsLike: 35,
+    humidity: 52,
+    precipitationChance: 5,
+  },
+  {
+    label: "Scattered Clouds",
+    icon: WeatherIcons.broken_clouds,
+    owmIcon: "03d",
+    temp: 30,
+    feelsLike: 32,
+    humidity: 58,
+    precipitationChance: 12,
+  },
+  {
+    label: "Light Rain",
+    icon: WeatherIcons.rain,
+    owmIcon: "10d",
+    temp: 28,
+    feelsLike: 29,
+    humidity: 71,
+    precipitationChance: 38,
+  },
+  {
+    label: "Overcast",
+    icon: WeatherIcons.broken_clouds,
+    owmIcon: "04d",
+    temp: 29,
+    feelsLike: 30,
+    humidity: 64,
+    precipitationChance: 20,
+  },
+];
 
 /**
  * OpenWeatherMap Condition Codes Mapping
@@ -84,6 +156,22 @@ function owmCodeToIcon(code: number | null | undefined): any {
   return WeatherIcons.default;
 }
 
+function openMeteoCodeToLabel(code: number | null | undefined): string {
+  if (code === null || code === undefined) return "Unavailable";
+  if (code === 0) return "Clear Sky";
+  if (code === 1 || code === 2) return "Mainly Clear";
+  if (code === 3) return "Overcast";
+  if (code === 45 || code === 48) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if (code >= 61 && code <= 67) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Rain Showers";
+  if (code >= 85 && code <= 86) return "Snow Showers";
+  if (code === 95) return "Thunderstorm";
+  if (code === 96 || code === 99) return "Thunderstorm w/ Hail";
+  return "Unknown";
+}
+
 function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): WeatherMarkerData {
   return {
     id: point.id,
@@ -95,7 +183,164 @@ function toUnavailableWeather(point: (typeof barangayWeatherPoints)[number]): We
     weatherIcon: WeatherIcons.default,
     weatherIconUrl: null,
     forecastTimeLabel: null,
+    weeklyForecast: [],
+    feelsLike: null,
+    humidity: null,
+    precipitationChance: null,
   };
+}
+
+async function fetchWeatherForCoords(
+  latitude: number,
+  longitude: number,
+  label: string
+): Promise<WeatherMarkerData | null> {
+  // Try OpenWeatherMap if available
+  if (OWM_API_KEY) {
+    try {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=metric&appid=${OWM_API_KEY}`;
+      const data = await fetchForecastWithRetry(url, label);
+      const nearestSlot = pickNearestForecastSlot(data?.list);
+      const weeklyData = compileWeeklyForecast(data?.list);
+      const temp = nearestSlot?.main?.temp;
+      const weatherCode = nearestSlot?.weather?.[0]?.id;
+      const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
+      const iconCode = nearestSlot?.weather?.[0]?.icon;
+      const iconUrl = iconCode ? `https://openweathermap.org/img/wn/${iconCode}@4x.png` : null;
+      return {
+        id: `user-${Date.now()}`,
+        barangay: label,
+        latitude,
+        longitude,
+        temperatureC: typeof temp === "number" ? Math.round(temp) : null,
+        weatherLabel: owmCodeToLabel(weatherCode),
+        weatherIcon: owmCodeToIcon(weatherCode),
+        weatherIconUrl: iconUrl,
+        forecastTimeLabel,
+        weeklyForecast: weeklyData,
+        feelsLike:
+          typeof nearestSlot?.main?.feels_like === "number"
+            ? Math.round(nearestSlot.main.feels_like)
+            : null,
+        humidity:
+          typeof nearestSlot?.main?.humidity === "number"
+            ? Math.round(nearestSlot.main.humidity)
+            : null,
+        precipitationChance:
+          typeof nearestSlot?.pop === "number"
+            ? Math.round(nearestSlot.pop * 100)
+            : null,
+      };
+    } catch (err) {
+      console.warn("OWM fetch failed; trying Open-Meteo", err);
+    }
+  }
+
+  // Fallback: Open-Meteo (no API key)
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,precipitation_probability&timezone=auto`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const cw = data?.current_weather;
+      const temp = typeof cw?.temperature === "number" ? Math.round(cw.temperature) : null;
+      const weatherCode = cw?.weathercode ?? null;
+      const forecastTimeLabel = cw?.time ? `At ${cw.time}` : "Current weather";
+      return {
+        id: `user-${Date.now()}`,
+        barangay: label,
+        latitude,
+        longitude,
+        temperatureC: temp,
+        weatherLabel: openMeteoCodeToLabel(weatherCode),
+        weatherIcon: WeatherIcons.default,
+        weatherIconUrl: null,
+        forecastTimeLabel,
+        weeklyForecast: [],
+        feelsLike: null,
+        humidity: Array.isArray(data?.hourly?.relativehumidity_2m)
+          ? Math.round(data.hourly.relativehumidity_2m[0])
+          : null,
+        precipitationChance: Array.isArray(data?.hourly?.precipitation_probability)
+          ? Math.round(data.hourly.precipitation_probability[0])
+          : null,
+      };
+    }
+  } catch (err) {
+    console.warn("Open-Meteo fetch failed", err);
+  }
+
+  return null;
+}
+
+function buildOwmIconUrl(iconCode?: string | null): string | null {
+  if (!iconCode) return null;
+  return `${OWM_ICON_BASE}/${iconCode}@4x.png`;
+}
+
+function buildFallbackWeather(): WeatherMarkerData[] {
+  const now = Date.now();
+  return barangayWeatherPoints.map((point, index) => {
+    const fallback = FALLBACK_CONDITIONS[index % FALLBACK_CONDITIONS.length];
+    const iconUrl = buildOwmIconUrl(fallback.owmIcon);
+    const weeklyForecast: DailyForecast[] = Array.from({ length: 4 }).map((_, dayIndex) => ({
+      date: now + dayIndex * 24 * 60 * 60 * 1000,
+      label: new Date(now + dayIndex * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
+        weekday: "short",
+      }),
+      high: fallback.temp + (dayIndex % 2 === 0 ? 1 : -1),
+      low: fallback.temp - 2,
+      weatherLabel: fallback.label,
+      weatherIcon: fallback.icon,
+    }));
+    return {
+      id: point.id,
+      barangay: point.barangay,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      temperatureC: fallback.temp,
+      weatherLabel: fallback.label,
+      weatherIcon: fallback.icon,
+      weatherIconUrl: iconUrl,
+      forecastTimeLabel: "Local snapshot",
+      weeklyForecast,
+      feelsLike: fallback.feelsLike,
+      humidity: fallback.humidity,
+      precipitationChance: fallback.precipitationChance,
+    };
+  });
+}
+
+function compileWeeklyForecast(list?: any[]): DailyForecast[] {
+  if (!Array.isArray(list)) return [];
+  const days: Record<string, { item: any; targetHoursDiff: number }> = {};
+  list.forEach((item) => {
+    const date = new Date(item.dt * 1000);
+    const dayKey = date.toISOString().split("T")[0];
+    const targetHour = 12;
+    const diff = Math.abs(date.getHours() - targetHour);
+    const previous = days[dayKey];
+    if (!previous || diff < previous.targetHoursDiff) {
+      days[dayKey] = { item, targetHoursDiff: diff };
+    }
+  });
+
+  return Object.values(days)
+    .sort((a, b) => a.item.dt - b.item.dt)
+    .slice(0, 7)
+    .map(({ item }) => {
+      const weatherCode = item?.weather?.[0]?.id;
+      return {
+        date: item.dt * 1000,
+        label: new Date(item.dt * 1000).toLocaleDateString(undefined, {
+          weekday: "short",
+        }),
+        high: Math.round(item?.main?.temp_max ?? item?.main?.temp ?? 0),
+        low: Math.round(item?.main?.temp_min ?? item?.main?.temp ?? 0),
+        weatherLabel: owmCodeToLabel(weatherCode),
+        weatherIcon: owmCodeToIcon(weatherCode),
+      } as DailyForecast;
+    });
 }
 
 function pickNearestForecastSlot(list: any[]): any | null {
@@ -169,6 +414,8 @@ export default function SafetyMapScreen() {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedMarkerData, setSelectedMarkerData] = useState<any>(null);
+  const [routePath, setRoutePath] = useState<{ latitude: number; longitude: number }[] | null>(null);
+  const [mapType, setMapType] = useState<"standard" | "satellite" | "hybrid" | "terrain">("hybrid");
   const [focusTarget, setFocusTarget] = useState<{
     latitude: number;
     longitude: number;
@@ -177,9 +424,24 @@ export default function SafetyMapScreen() {
   } | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const [weatherMarkers, setWeatherMarkers] = useState<WeatherMarkerData[]>([]);
+  const [weeklyForecast, setWeeklyForecast] = useState<DailyForecast[]>([]);
   const isFetchingWeatherRef = useRef(false);
   const hasLoadedWeatherRef = useRef(false);
+  const [showAiSummary, setShowAiSummary] = useState(false);
+  const [aiTypewriterText, setAiTypewriterText] = useState("");
+  const aiSummaryScrollRef = useRef<ScrollView>(null);
+  const scrollHintAnim = useRef(new Animated.Value(0)).current;
+  const [showHourlyHint, setShowHourlyHint] = useState(true);
   const qcBoundaryCoordinates = useMemo(() => getQCBoundaryCoordinates(), []);
+  const [infoPanelHeight, setInfoPanelHeight] = useState(0);
+  const quickActionsBottom = useMemo(
+    () => (showInfoPanel ? infoPanelHeight + 12 : 32),
+    [showInfoPanel, infoPanelHeight]
+  );
+  const quickActionsDynamicStyle = useMemo(
+    () => ({ bottom: quickActionsBottom }),
+    [quickActionsBottom]
+  );
 
   const toggleLayer = useCallback((layer: "alert" | "weather" | "evac") => {
     setLayerVisibility((prev) => ({
@@ -196,11 +458,6 @@ export default function SafetyMapScreen() {
   const activeWeatherMarkers = useMemo(
     () => (layerVisibility.weather ? weatherMarkers : []),
     [layerVisibility.weather, weatherMarkers]
-  );
-
-  const quickActionsDynamicStyle = useMemo(
-    () => ({ bottom: showInfoPanel ? 170 : 86 }),
-    [showInfoPanel]
   );
 
   const nearestEvacuation = useMemo(() => {
@@ -223,9 +480,56 @@ export default function SafetyMapScreen() {
       }
     }
 
-    if (!nearest || minDistance === Infinity) return null;
-    return { site: nearest, distanceKm: minDistance };
-  }, [userLocation]);
+  if (!nearest || minDistance === Infinity) return null;
+  return { site: nearest, distanceKm: minDistance };
+}, [userLocation]);
+
+  const navigationInfo = useMemo(() => {
+    if (!routePath || routePath.length < 2 || !nearestEvacuation) return null;
+    const start = routePath[0];
+    const end = routePath[routePath.length - 1];
+    const distanceKm = calculateDistance(
+      start.latitude,
+      start.longitude,
+      end.latitude,
+      end.longitude
+    );
+    const etaMinutes = Math.max(1, Math.round((distanceKm / 4) * 60)); // ~4 km/h walking
+    return {
+      distanceKm,
+      etaMinutes,
+      destination: nearestEvacuation.site.name,
+    };
+  }, [routePath, nearestEvacuation]);
+
+  const computeRoute = useCallback(
+    async (
+      origin: { latitude: number; longitude: number },
+      destination: { latitude: number; longitude: number }
+    ) => {
+      // optimistic straight line while fetching a better path
+      setRoutePath([origin, destination]);
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        const coords =
+          data?.routes?.[0]?.geometry?.coordinates?.map(
+            ([lng, lat]: [number, number]) => ({
+              latitude: lat,
+              longitude: lng,
+            })
+          ) ?? [];
+        if (coords.length > 1) {
+          setRoutePath(coords);
+        }
+      } catch {
+        // ignore network errors; fallback straight line remains
+      }
+    },
+    []
+  );
 
   const selectedMarkerMessage = useMemo(() => {
     if (selectedMarkerData?.type === "evacuation") {
@@ -246,6 +550,24 @@ export default function SafetyMapScreen() {
 
     return "Tap a marker to surface localized area information.";
   }, [selectedMarkerData]);
+
+  useEffect(() => {
+    if (selectedMarkerData?.type === "weather") {
+      const weekly =
+        selectedMarkerData.data?.weeklyForecast ??
+        selectedMarkerData?.weeklyForecast ??
+        [];
+      if (weekly.length > 0) {
+        setWeeklyForecast(weekly);
+        return;
+      }
+    }
+
+    const fallback =
+      activeWeatherMarkers.find((marker) => marker.weeklyForecast.length > 0)
+        ?.weeklyForecast ?? [];
+    setWeeklyForecast(fallback);
+  }, [selectedMarkerData, activeWeatherMarkers]);
 
   const selectedEvacuationDistanceLabel = useMemo(() => {
     if (selectedMarkerData?.type !== "evacuation") return null;
@@ -301,6 +623,95 @@ export default function SafetyMapScreen() {
     typeof areaWeatherSummary?.temperatureC === "number"
       ? `${areaWeatherSummary.temperatureC}\u00B0C`
       : "--\u00B0C";
+  const feelsLikeLabel =
+    typeof areaWeatherSummary?.feelsLike === "number"
+      ? `${areaWeatherSummary.feelsLike}\u00B0`
+      : "--\u00B0";
+  const precipitationLabel =
+    typeof areaWeatherSummary?.precipitationChance === "number"
+      ? `${areaWeatherSummary.precipitationChance}%`
+      : "--%";
+  const humidityLabel =
+    typeof areaWeatherSummary?.humidity === "number"
+      ? `${areaWeatherSummary.humidity}%`
+      : "--%";
+  const statValueColor = isDarkMode ? "#e2e8f0" : "#0f172a";
+  const statLabelColor = isDarkMode ? "#94a3b8" : "#94a3b8";
+  const scrollToAIDescription = useCallback(() => {
+    aiSummaryScrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+  const weatherAIMessage = useMemo(() => {
+    if (!areaWeatherSummary) return "AI Weather Bot is analyzing your area right now.";
+    const upcomingCondition =
+      areaWeatherSummary.weeklyForecast?.[0]?.weatherLabel ?? "variable skies";
+    return `AI Weather Bot predicts ${upcomingCondition.toLowerCase()} with ${feelsLikeLabel} feels like, ${precipitationLabel} chance of rain, and ${humidityLabel} humidity.`;
+  }, [areaWeatherSummary, feelsLikeLabel, precipitationLabel, humidityLabel]);
+  useEffect(() => {
+    if (showAiSummary) {
+      scrollToAIDescription();
+    }
+  }, [showAiSummary, scrollToAIDescription]);
+  const typewriterSpeedMs = 28;
+  useEffect(() => {
+    if (!showAiSummary) {
+      setAiTypewriterText("");
+      return;
+    }
+    let currentIndex = 0;
+    setAiTypewriterText("");
+    const intervalId = setInterval(() => {
+      setAiTypewriterText((prev) => {
+        const nextChar = weatherAIMessage[currentIndex] ?? "";
+        return prev + nextChar;
+      });
+      currentIndex += 1;
+      if (currentIndex >= weatherAIMessage.length) {
+        clearInterval(intervalId);
+      }
+    }, typewriterSpeedMs);
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [showAiSummary, weatherAIMessage]);
+  const aiTypewriterPlaceholder = "AI Weather Bot is preparing your briefing…";
+  const aiTextToRender = aiTypewriterText || aiTypewriterPlaceholder;
+  const hourlyTimeLabels = useMemo(
+    () => ["11:00 AM", "02:00 PM", "05:00 PM", "08:00 PM"],
+    []
+  );
+  const degreeSymbol = "\u00B0";
+  const horizontalForecast = useMemo(() => {
+    if (!Array.isArray(weeklyForecast)) return [];
+    return weeklyForecast.slice(0, 4).map((day, index) => ({
+      ...day,
+      label: hourlyTimeLabels[index] ?? day.label,
+    }));
+  }, [weeklyForecast, hourlyTimeLabels]);
+  const hasHourlyForecast = horizontalForecast.length > 0;
+
+  useEffect(() => {
+    setShowHourlyHint(hasHourlyForecast && horizontalForecast.length > 1);
+  }, [horizontalForecast.length, hasHourlyForecast]);
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollHintAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrollHintAnim, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scrollHintAnim]);
 
   const weatherDescription =
     areaWeatherSummary?.weatherLabel ?? "Weather unavailable";
@@ -338,11 +749,12 @@ export default function SafetyMapScreen() {
 
       if (!OWM_API_KEY) {
         console.warn(
-          "OpenWeatherMap API Key (EXPO_PUBLIC_OPENWEATHER_API_KEY) is missing in .env. Current OWM_API_KEY:",
-          OWM_API_KEY
+          "OpenWeatherMap API Key (EXPO_PUBLIC_OPENWEATHER_API_KEY) is missing in .env. Falling back to mock weather data."
         );
         if (mounted) {
-          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          const fallbackWeather = buildFallbackWeather();
+          setWeatherMarkers(fallbackWeather);
+          setWeeklyForecast(fallbackWeather[0]?.weeklyForecast ?? []);
           hasLoadedWeatherRef.current = true;
         }
         return;
@@ -351,27 +763,32 @@ export default function SafetyMapScreen() {
       isFetchingWeatherRef.current = true;
 
         if (mounted && showLoadingState) {
-          setWeatherMarkers(
-            barangayWeatherPoints.map((point) => ({
-              id: point.id,
-              barangay: point.barangay,
-              latitude: point.latitude,
-              longitude: point.longitude,
-              temperatureC: null,
-              weatherLabel: "Loading...",
-              weatherIcon: WeatherIcons.default,
-              weatherIconUrl: null,
-              forecastTimeLabel: null,
-            }))
-          );
+            setWeatherMarkers(
+              barangayWeatherPoints.map((point) => ({
+                id: point.id,
+                barangay: point.barangay,
+                latitude: point.latitude,
+                longitude: point.longitude,
+                temperatureC: null,
+                weatherLabel: "Loading...",
+                weatherIcon: WeatherIcons.default,
+                weatherIconUrl: null,
+                forecastTimeLabel: null,
+                weeklyForecast: [],
+                feelsLike: null,
+                humidity: null,
+                precipitationChance: null,
+              }))
+            );
         }
 
       try {
         const nextWeatherResults = await Promise.allSettled(
           barangayWeatherPoints.map(async (point) => {
             const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${point.latitude}&lon=${point.longitude}&units=metric&appid=${OWM_API_KEY}`;
-            const data = await fetchForecastWithRetry(url, point.barangay);
-            const nearestSlot = pickNearestForecastSlot(data?.list);
+        const data = await fetchForecastWithRetry(url, point.barangay);
+        const nearestSlot = pickNearestForecastSlot(data?.list);
+        const weeklyData = compileWeeklyForecast(data?.list);
             const temp = nearestSlot?.main?.temp;
             const weatherCode = nearestSlot?.weather?.[0]?.id;
             const forecastTimeLabel = formatForecastTimeLabel(nearestSlot?.dt);
@@ -391,13 +808,22 @@ export default function SafetyMapScreen() {
               weatherIcon: owmCodeToIcon(weatherCode),
               weatherIconUrl: iconUrl,
               forecastTimeLabel,
+              weeklyForecast: weeklyData,
+              feelsLike: typeof nearestSlot?.main?.feels_like === "number"
+                ? Math.round(nearestSlot.main.feels_like)
+                : null,
+              humidity: typeof nearestSlot?.main?.humidity === "number"
+                ? Math.round(nearestSlot.main.humidity)
+                : null,
+              precipitationChance: typeof nearestSlot?.pop === "number"
+                ? Math.round(nearestSlot.pop * 100)
+                : null,
             };
           })
         );
 
         if (mounted) {
-          setWeatherMarkers(
-            nextWeatherResults.map((result, index) => {
+            const markers = nextWeatherResults.map((result, index) => {
               if (result.status === "fulfilled") {
                 return result.value;
               }
@@ -405,14 +831,19 @@ export default function SafetyMapScreen() {
               const point = barangayWeatherPoints[index];
               console.error(`Failed to fetch forecast for ${point.barangay}:`, result.reason);
               return toUnavailableWeather(point);
-            })
-          );
-          hasLoadedWeatherRef.current = true;
+            });
+            setWeatherMarkers(markers);
+            const fallbackWeekly =
+              markers.find((marker) => marker.weeklyForecast.length > 0)?.weeklyForecast ?? [];
+            setWeeklyForecast(fallbackWeekly);
+            hasLoadedWeatherRef.current = true;
         }
       } catch (error) {
         console.error("Failed to fetch barangay forecasts:", error);
         if (mounted) {
-          setWeatherMarkers(barangayWeatherPoints.map(toUnavailableWeather));
+          const fallbackWeather = buildFallbackWeather();
+          setWeatherMarkers(fallbackWeather);
+          setWeeklyForecast(fallbackWeather[0]?.weeklyForecast ?? []);
           hasLoadedWeatherRef.current = true;
         }
       } finally {
@@ -436,32 +867,111 @@ export default function SafetyMapScreen() {
 
   const handleMapPress = useCallback(() => {
     setShowInfoPanel(true);
+    // Return to normal clustering after user interacts with map
+    setForceShowAllEvacs(false);
+    // Clear manual route when user taps away
+    setRoutePath(null);
   }, []);
 
   const handleMarkerPress = useCallback((marker: any) => {
     setSelectedMarkerData(marker);
     setShowInfoPanel(true);
+    // keep forceShowAllEvacs state; clicking a marker shouldn't re-enable clustering
   }, []);
 
-  const handleFindMe = useCallback(() => {
-    if (!userLocation) return;
+  const [forceShowAllEvacs, setForceShowAllEvacs] = useState(false);
 
+  const handleFindMe = useCallback(async () => {
+    let currentLocation = userLocation;
+    // If we don't have a location yet, try to fetch it now
+    if (!currentLocation) {
+      setIsLoadingLocation(true);
+      currentLocation = await LocationService.getCurrentLocation();
+      setUserLocation(currentLocation);
+      setIsLoadingLocation(false);
+    }
+
+    if (!currentLocation) return;
+
+    // Optimistically show a "your location" weather entry in the info panel
+    const loadingWeather: WeatherMarkerData = {
+      id: `user-loading-${Date.now()}`,
+      barangay: "Your location",
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      temperatureC: null,
+      weatherLabel: "Fetching forecast...",
+      weatherIcon: WeatherIcons.default,
+      weatherIconUrl: null,
+      forecastTimeLabel: null,
+      weeklyForecast: [],
+      feelsLike: null,
+      humidity: null,
+      precipitationChance: null,
+    };
+    setSelectedMarkerData({ type: "weather", data: loadingWeather });
+
+    // Fetch a fresh forecast for the exact location when possible; otherwise fall back to nearest marker
+    const userWeather = await fetchWeatherForCoords(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      "Your location"
+    );
+    if (userWeather) {
+      setSelectedMarkerData({ type: "weather", data: userWeather });
+    } else if (activeWeatherMarkers.length > 0) {
+      let nearest = activeWeatherMarkers[0];
+      let nearestDistance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        nearest.latitude,
+        nearest.longitude
+      );
+      for (const marker of activeWeatherMarkers) {
+        const d = calculateDistance(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          marker.latitude,
+          marker.longitude
+        );
+        if (d < nearestDistance) {
+          nearestDistance = d;
+          nearest = marker;
+        }
+      }
+      setSelectedMarkerData({ type: "weather", data: nearest });
+    }
+
+    setForceShowAllEvacs(false);
+    setRoutePath(null);
     setFocusTarget({
-      latitude: userLocation.latitude,
-      longitude: userLocation.longitude,
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
       zoomDelta: 0.02,
       key: `find-me-${Date.now()}`,
     });
     setShowInfoPanel(true);
-  }, [userLocation]);
+  }, [userLocation, activeWeatherMarkers]);
 
   const handleNearestEvac = useCallback(() => {
     if (!nearestEvacuation) return;
 
+    setForceShowAllEvacs(true);
+    if (userLocation) {
+      void computeRoute(
+        { latitude: userLocation.latitude, longitude: userLocation.longitude },
+        {
+          latitude: nearestEvacuation.site.latitude,
+          longitude: nearestEvacuation.site.longitude,
+        }
+      );
+    } else {
+      setRoutePath(null);
+    }
     setFocusTarget({
       latitude: nearestEvacuation.site.latitude,
       longitude: nearestEvacuation.site.longitude,
-      zoomDelta: 0.025,
+      zoomDelta: 0.012,
       key: `nearest-evac-${Date.now()}`,
     });
     setSelectedMarkerData({
@@ -469,7 +979,7 @@ export default function SafetyMapScreen() {
       data: nearestEvacuation.site,
     });
     setShowInfoPanel(true);
-  }, [nearestEvacuation]);
+  }, [nearestEvacuation, userLocation, computeRoute]);
 
   return (
     <ThemedView style={styles.container}>
@@ -487,6 +997,9 @@ export default function SafetyMapScreen() {
             weatherMarkers={activeWeatherMarkers}
             nearestEvacuationId={nearestEvacuation?.site.id ?? null}
             isLoadingCrimeData={false}
+            clusteringEnabled={!forceShowAllEvacs}
+            routePath={routePath}
+            mapType={mapType}
             onMapPress={handleMapPress}
             onMarkerPress={handleMarkerPress}
             focusTarget={focusTarget}
@@ -496,12 +1009,7 @@ export default function SafetyMapScreen() {
       </View>
 
       {/* Quick Actions */}
-      <View
-        style={[
-          styles.quickActions,
-          quickActionsDynamicStyle,
-        ]}
-      >
+      <View style={[styles.quickActions, quickActionsDynamicStyle]}>
         <Pressable
           style={[
             styles.quickActionButton,
@@ -534,7 +1042,7 @@ export default function SafetyMapScreen() {
         onPress={() => setShowLegend(!showLegend)}
       >
         <IconSymbol
-          name={showLegend ? "chevron.right" : "chevron.left"}
+          name={showLegend ? "chevron.down" : "list.bullet"}
           size={20}
           color={TealColors.primary}
         />
@@ -572,6 +1080,39 @@ export default function SafetyMapScreen() {
           <ThemedText style={styles.legendGuide}>
             Blue = Low density | Red = High density
           </ThemedText>
+
+          <View style={styles.legendDivider} />
+
+          <View style={styles.mapTypeToggleRow}>
+            {[
+              { key: "hybrid", label: "Hybrid" },
+              { key: "terrain", label: "Terrain" },
+              { key: "standard", label: "Standard" },
+              { key: "satellite", label: "Satellite" },
+            ].map((opt) => (
+              <Pressable
+                key={opt.key}
+                style={[
+                  styles.mapTypeChip,
+                  {
+                    backgroundColor:
+                      mapType === opt.key ? `${TealColors.primary}22` : isDarkMode ? "#1f2937" : "#e5e7eb",
+                    borderColor: mapType === opt.key ? TealColors.primary : isDarkMode ? "#334155" : "#cbd5e1",
+                  },
+                ]}
+                onPress={() => setMapType(opt.key as typeof mapType)}
+              >
+                <ThemedText
+                  style={[
+                    styles.mapTypeChipText,
+                    { color: mapType === opt.key ? TealColors.primary : isDarkMode ? "#e2e8f0" : "#0f172a" },
+                  ]}
+                >
+                  {opt.label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
 
           <View style={styles.legendDivider} />
           <ThemedText style={styles.legendSectionTitle}>Map Layers</ThemedText>
@@ -629,19 +1170,6 @@ export default function SafetyMapScreen() {
         </View>
       )}
 
-      {!showInfoPanel && (
-        <View
-          style={[
-            styles.infoHint,
-            { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
-          ]}
-        >
-          <ThemedText style={styles.infoHintText}>
-            Tap map or marker to show area information
-          </ThemedText>
-        </View>
-      )}
-
       {/* Bottom Info Panel */}
       {showInfoPanel && (
         <View
@@ -649,137 +1177,445 @@ export default function SafetyMapScreen() {
             styles.infoPanel,
             { backgroundColor: isDarkMode ? "#2d3748" : "#ffffff" },
           ]}
+          onLayout={(event) => setInfoPanelHeight(event.nativeEvent.layout.height)}
         >
-          <View style={styles.infoPanelHeader}>
-            <View style={styles.infoPanelTitleRow}>
-              <IconSymbol name="location" size={20} color={TealColors.primary} />
-              <ThemedText style={styles.infoPanelTitle}>
-                Area Information
-              </ThemedText>
-            </View>
-            <Pressable onPress={() => setShowInfoPanel(false)}>
+          <View
+            style={[
+              styles.infoPanelHeader,
+              showWeatherSummary && styles.weatherHeaderBackground,
+              showWeatherSummary && {
+                backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
+              },
+            ]}
+          >
+            {showWeatherSummary ? (
+              <View style={styles.infoPanelTitleRow}>
+                <IconSymbol name="location" size={16} color={TealColors.primary} />
+                <ThemedText style={styles.infoPanelTitle}>
+                  Area Weather Forecast
+                </ThemedText>
+              </View>
+            ) : (
+              selectedMarkerData?.type !== "weather" && (
+                <View style={styles.infoPanelTitleRow}>
+                  <IconSymbol name="location" size={16} color={TealColors.primary} />
+                  <ThemedText style={styles.infoPanelTitle}>
+                    Area Information
+                  </ThemedText>
+                </View>
+              )
+            )}
+            <View style={styles.headerSpacer} />
+            <Pressable style={styles.closeButton} onPress={() => setShowInfoPanel(false)}>
               <IconSymbol
                 name="xmark"
-                size={16}
+                size={18}
                 color={isDarkMode ? "#e2e8f0" : "#4a5568"}
               />
             </Pressable>
           </View>
 
-          <ThemedText style={styles.infoPanelSubtitle}>
-            {selectedMarkerMessage}
-          </ThemedText>
-
-          {selectedMarkerData?.type === "evacuation" && (
-            <View
-              style={[
-                styles.markerDetailCard,
-                {
-                  backgroundColor: isDarkMode ? "#0f172a" : "#e0f2fe",
-                },
-              ]}
-            >
-              <ThemedText style={styles.markerDetailLabel}>
-                Evacuation center
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.markerDetailValue,
-                  { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
-                ]}
-              >
-                {selectedMarkerData.data.name}
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.markerDetailMeta,
-                  { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
-                ]}
-              >
-                {selectedMarkerData.data.district}
-                {selectedEvacuationDistanceLabel
-                  ? ` • ${selectedEvacuationDistanceLabel} away`
-                  : ""}
-              </ThemedText>
-            </View>
-          )}
-
-          {selectedMarkerData?.type === "crime" && (
-            <View
-              style={[
-                styles.markerDetailCard,
-                {
-                  backgroundColor: isDarkMode ? "#3b0d0d" : "#fee2e2",
-                },
-              ]}
-            >
-              <ThemedText style={styles.markerDetailLabel}>
-                Incident alert
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.markerDetailValue,
-                  { color: isDarkMode ? "#fee2e2" : "#0f172a" },
-                ]}
-              >
-                {selectedCrimeDateLabel ?? "Recent report"}
-              </ThemedText>
-              <ThemedText style={styles.markerDetailMeta}>
-                {selectedCrimeDistanceLabel
-                  ? `${selectedCrimeDistanceLabel} from you`
-                  : "Tap marker to reposition the map"}
-              </ThemedText>
-            </View>
-          )}
-
-          {showWeatherSummary && (
-            <View style={styles.weatherSummary}>
-              <View style={styles.weatherIconWrap}>
-                <Image
-                  source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
-                  style={styles.weatherSummaryIcon}
-                  resizeMode="contain"
-                />
-              </View>
-              <View style={styles.weatherSummaryText}>
-                <ThemedText style={styles.weatherSummaryLocation}>
-                  {areaWeatherSummary?.barangay ?? "Talayan"}
-                </ThemedText>
-                <View style={styles.weatherSummaryRow}>
-                  <ThemedText style={styles.weatherSummaryTemp}>
-                    {weatherTemperatureLabel}
-                  </ThemedText>
-                  <View style={styles.weatherSummaryDot} />
-                  <ThemedText style={styles.weatherSummaryLabel}>
-                    {weatherDescription}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.weatherSummaryDetail}>
-                  {weatherDetailLine}
-                </ThemedText>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.floodHeaderRow}>
-            <ThemedText style={styles.sectionLabel}>
-              Flood-prone barangays
-            </ThemedText>
-            <ThemedText style={styles.sectionDescription}>
-              Scroll for details
-            </ThemedText>
-          </View>
-
           <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.floodChipsRow}
+            style={styles.infoContentScroll}
+            contentContainerStyle={styles.infoContentContainer}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
           >
-            {floodProneBarangays.map((barangay) => (
-              <View key={barangay} style={styles.floodChip}>
-                <ThemedText style={styles.floodChipText}>{barangay}</ThemedText>
+            {selectedMarkerData?.type !== "weather" && !showWeatherSummary && (
+              <ThemedText style={styles.infoPanelSubtitle}>
+                {selectedMarkerMessage}
+              </ThemedText>
+            )}
+
+            {navigationInfo && (
+              <View
+                style={[
+                  styles.navigationInfoCard,
+                  {
+                    backgroundColor: isDarkMode ? "#111827" : "#f8fafc",
+                    borderColor: isDarkMode ? "#1f2937" : "#e5e7eb",
+                  },
+                ]}
+              >
+                <View style={styles.navigationInfoRow}>
+                  <IconSymbol name="arrow.right" size={18} color={TealColors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.navigationTitle} numberOfLines={1}>
+                      Routing to {navigationInfo.destination}
+                    </ThemedText>
+                    <ThemedText style={styles.navigationSubtitle}>
+                      {navigationInfo.distanceKm.toFixed(2)} km · ~{navigationInfo.etaMinutes} min
+                    </ThemedText>
+                  </View>
+                  <Pressable style={styles.navigationClearBtn} onPress={() => setRoutePath(null)}>
+                    <ThemedText style={styles.navigationClearText}>Clear</ThemedText>
+                  </Pressable>
+                </View>
               </View>
-            ))}
+            )}
+
+            {selectedMarkerData?.type === "evacuation" && (
+              <View
+                style={[
+                  styles.markerDetailCard,
+                  {
+                    backgroundColor: isDarkMode ? "#0f172a" : "#e0f2fe",
+                  },
+                ]}
+              >
+                <ThemedText style={styles.markerDetailLabel}>
+                  Evacuation center
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.markerDetailValue,
+                    { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                  ]}
+                >
+                  {selectedMarkerData.data.name}
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.markerDetailMeta,
+                    { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                  ]}
+                >
+                  {selectedMarkerData.data.district}
+                  {selectedEvacuationDistanceLabel
+                    ? ` • ${selectedEvacuationDistanceLabel} away`
+                    : ""}
+                </ThemedText>
+              </View>
+            )}
+
+            {selectedMarkerData?.type === "crime" && (
+              <View
+                style={[
+                  styles.markerDetailCard,
+                  {
+                    backgroundColor: isDarkMode ? "#3b0d0d" : "#fee2e2",
+                  },
+                ]}
+              >
+                <ThemedText style={styles.markerDetailLabel}>
+                  Incident alert
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.markerDetailValue,
+                    { color: isDarkMode ? "#fee2e2" : "#0f172a" },
+                  ]}
+                >
+                  {selectedCrimeDateLabel ?? "Recent report"}
+                </ThemedText>
+                <ThemedText style={styles.markerDetailMeta}>
+                  {selectedCrimeDistanceLabel
+                    ? `${selectedCrimeDistanceLabel} from you`
+                    : "Tap marker to reposition the map"}
+                </ThemedText>
+              </View>
+            )}
+
+            {showWeatherSummary && (
+              <>
+                <View style={styles.weatherCardHeader}>
+                  <View style={styles.weatherInfoGroup}>
+                    <View
+                      style={[
+                        styles.weatherHeaderText,
+                        { paddingRight: 4 },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.locationLabel,
+                          { color: isDarkMode ? "#e2e8f0" : "#0f172a" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {areaWeatherSummary?.barangay ?? "Talayan"}
+                      </ThemedText>
+                      <ThemedText
+                        style={styles.temperatureLabel}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                      >
+                        {weatherTemperatureLabel}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.conditionLabel,
+                          { color: isDarkMode ? "#cbd5f5" : "#64748b" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {weatherDescription}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.weatherDetailLine,
+                          { color: isDarkMode ? "#d1d5db" : "#94a3b8" },
+                        ]}
+                      >
+                        {weatherDetailLine.replace("Forecast slot: ", "Updated ")}
+                      </ThemedText>
+                      <Pressable
+                        style={[
+                          styles.aiTriggerButton,
+                          {
+                            borderColor: isDarkMode ? "#94a3b8" : TealColors.primary,
+                            backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                          },
+                        ]}
+                        onPress={() => {
+                          if (!showAiSummary) {
+                            setShowAiSummary(true);
+                          } else {
+                            scrollToAIDescription();
+                          }
+                        }}
+                        accessibilityLabel="Scroll to AI weather summary"
+                      >
+                        <MaterialCommunityIcons
+                          name="robot"
+                          size={24}
+                          color={isDarkMode ? "#e0f2fe" : TealColors.primary}
+                        />
+                      </Pressable>
+                    </View>
+                    <View style={styles.weatherStatsColumnRight}>
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="thermometer"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Feels like
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {feelsLikeLabel}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="cloud.rain"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Precip
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {precipitationLabel}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      <View style={styles.statRow}>
+                        <IconSymbol
+                          name="drop"
+                          size={16}
+                          color={TealColors.primary}
+                        />
+                        <View>
+                          <ThemedText
+                            style={[styles.statLabel, { color: statLabelColor }]}
+                          >
+                            Humidity
+                          </ThemedText>
+                          <ThemedText
+                            style={[styles.statValue, { color: statValueColor }]}
+                          >
+                            {humidityLabel}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.weatherIconBackground,
+                      {
+                        backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6",
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={areaWeatherSummary?.weatherIcon ?? WeatherIcons.default}
+                      style={styles.weatherIconLarge}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </View>
+                <ScrollView
+                  ref={aiSummaryScrollRef}
+                  style={styles.aiScrollContainer}
+                  contentContainerStyle={styles.aiScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                <View style={styles.hourlyScrollWrapper}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.hourlyForecastListContent}
+                    onScroll={({ nativeEvent }) => {
+                      const { contentOffset, layoutMeasurement, contentSize } = nativeEvent;
+                      const visibleEnd = contentOffset.x + layoutMeasurement.width;
+                      const atEnd = visibleEnd >= contentSize.width - 4; // small buffer
+                      setShowHourlyHint(!atEnd && horizontalForecast.length > 1);
+                    }}
+                    onMomentumScrollEnd={({ nativeEvent }) => {
+                      const { contentOffset, layoutMeasurement, contentSize } = nativeEvent;
+                      const visibleEnd = contentOffset.x + layoutMeasurement.width;
+                      const atEnd = visibleEnd >= contentSize.width - 4;
+                      setShowHourlyHint(!atEnd && horizontalForecast.length > 1);
+                    }}
+                    onScrollBeginDrag={() => {
+                      if (horizontalForecast.length > 1) setShowHourlyHint(true);
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    {hasHourlyForecast ? (
+                      horizontalForecast.map((slot) => (
+                      <View
+                        key={slot.date}
+                        style={[
+                          styles.hourlyForecastItem,
+                          {
+                            backgroundColor: isDarkMode
+                              ? "rgba(56, 189, 248, 0.15)"
+                              : "#f1f5f9",
+                            borderColor: isDarkMode
+                              ? "rgba(14, 165, 233, 0.3)"
+                              : "rgba(15, 23, 42, 0.08)",
+                            marginRight: 10,
+                          },
+                        ]}
+                      >
+                        <ThemedText style={styles.hourlyTime}>
+                          {slot.label}
+                        </ThemedText>
+                        <Image
+                          source={slot.weatherIcon}
+                          style={styles.hourlyIcon}
+                          resizeMode="contain"
+                        />
+                        <ThemedText
+                          style={[
+                            styles.hourlyTemp,
+                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          ]}
+                        >
+                          {slot.high}
+                          {degreeSymbol}
+                        </ThemedText>
+                      </View>
+                    ))
+                  ) : (
+                    <ThemedText style={styles.hourlyPlaceholder}>
+                      Forecast soon
+                    </ThemedText>
+                  )}
+                </ScrollView>
+                  {showHourlyHint && hasHourlyForecast && (
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.hourlyScrollHintText,
+                        {
+                          color: isDarkMode ? "#cbd5f5" : "#475569",
+                          opacity: scrollHintAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.35, 1],
+                          }),
+                          transform: [
+                            {
+                              translateX: scrollHintAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 6],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {">>>"}
+                    </Animated.Text>
+                  )}
+                </View>
+                  {showAiSummary && (
+                    <View
+                      style={[
+                        styles.aiBotCard,
+                        {
+                          backgroundColor: isDarkMode ? "#111827" : "#eef2ff",
+                          borderColor: isDarkMode
+                            ? "rgba(79, 70, 229, 0.35)"
+                            : "rgba(14, 165, 233, 0.35)",
+                        },
+                      ]}
+                    >
+                    <View
+                      style={[
+                        styles.aiBotIconWrapper,
+                        {
+                          borderColor: isDarkMode
+                              ? "rgba(226, 232, 240, 0.25)"
+                              : "rgba(15, 23, 42, 0.2)",
+                            backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name="robot"
+                          size={26}
+                          color={TealColors.primary}
+                        />
+                      </View>
+                      <View style={styles.aiBotContent}>
+                        <ThemedText
+                          style={[
+                            styles.aiBotTitle,
+                            { color: isDarkMode ? "#e0f2fe" : "#0f172a" },
+                          ]}
+                        >
+                          AI Weather Bot
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.aiBotText,
+                            { color: isDarkMode ? "#cbd5f5" : "#0f172a" },
+                          ]}
+                        >
+                          {aiTextToRender}
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.aiBotCaption,
+                            { color: isDarkMode ? "#94a3b8" : "#475569" },
+                          ]}
+                        >
+                          Tap the robot above to jump here.
+                        </ThemedText>
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+              </>
+            )}
           </ScrollView>
         </View>
       )}
@@ -797,8 +1633,8 @@ const styles = StyleSheet.create({
   },
   legendToggle: {
     position: "absolute",
-    top: 20,
-    right: 16,
+    top: 44,
+    right: 18,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
@@ -867,6 +1703,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 8,
   },
+  mapTypeToggleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
+  },
+  mapTypeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  mapTypeChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   checkboxRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -893,7 +1745,11 @@ const styles = StyleSheet.create({
   quickActions: {
     position: "absolute",
     right: 16,
+    flexDirection: "column",
+    alignItems: "flex-end",
     gap: 10,
+    zIndex: 20,
+    elevation: 8,
   },
   quickActionButton: {
     flexDirection: "row",
@@ -912,29 +1768,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  infoHint: {
+  navigationBanner: {
     position: "absolute",
-    bottom: 16,
     left: 16,
     right: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 5,
+    zIndex: 15,
   },
-  infoHintText: {
+  navigationBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navigationTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  navigationSubtitle: {
     fontSize: 12,
-    textAlign: "center",
-    opacity: 0.85,
+    color: "#6b7280",
+  },
+  navigationInfoCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  navigationInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navigationClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  navigationClearText: {
+    color: TealColors.primary,
+    fontWeight: "700",
+    fontSize: 12,
   },
   infoPanel: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
@@ -944,95 +1830,223 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 6,
+    maxHeight: INFO_PANEL_MAX_HEIGHT,
+  },
+  infoContentScroll: {
+    marginTop: 10,
+  },
+  infoContentContainer: {
+    paddingBottom: 12,
+    gap: 10,
   },
   infoPanelHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+  },
+  headerSpacer: {
+    flex: 1,
   },
   infoPanelTitleRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   infoPanelTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
+  },
+  weatherHeaderBackground: {
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 6,
   },
   infoPanelSubtitle: {
     fontSize: 12,
     color: "#94a3b8",
-    marginBottom: 10,
+    marginBottom: 6,
   },
-  weatherSummary: {
+  closeButton: {
+    padding: 4,
+    marginRight: -4,
+  },
+  weatherCardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 12,
   },
-  weatherIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  weatherSummaryIcon: {
-    width: 42,
-    height: 42,
-  },
-  weatherSummaryText: {
+  weatherInfoGroup: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     flex: 1,
   },
-  weatherSummaryLocation: {
-    fontSize: 14,
+  weatherHeaderText: {
+    minWidth: 0,
+    marginRight: 6,
+    marginTop: 4,
+  },
+  locationLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  temperatureLabel: {
+    fontSize: 38,
+    fontWeight: "700",
+    color: TealColors.primary,
+    letterSpacing: -1,
+    flexShrink: 1,
+    minWidth: 0,
+    lineHeight: 42,
+    includeFontPadding: false,
+  },
+  conditionLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  weatherDetailLine: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  weatherIconLarge: {
+    width: 86,
+    height: 86,
+  },
+  weatherIconBackground: {
+    borderRadius: 20,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  weatherStatsColumnRight: {
+    flexShrink: 0,
+    alignItems: "flex-start",
+    gap: 4,
+  },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  aiTriggerButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  aiScrollContainer: {
+    marginTop: 6,
+  },
+  aiScrollContent: {
+    paddingBottom: 8,
+  },
+  hourlyScrollWrapper: {
+    position: "relative",
+  },
+  hourlyScrollHintText: {
+    position: "absolute",
+    top: "40%",
+    transform: [{ translateY: -9 }],
+    right: 6,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  aiBotCard: {
+    flexDirection: "row",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 12,
+    gap: 12,
+    alignItems: "center",
+  },
+  aiBotIconWrapper: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiBotContent: {
+    flex: 1,
+  },
+  aiBotTitle: {
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 4,
   },
-  weatherSummaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
+  aiBotText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
-  weatherSummaryTemp: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: TealColors.primary,
-  },
-  weatherSummaryDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#cbd5f5",
-  },
-  weatherSummaryLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#475569",
-    textTransform: "capitalize",
-    marginLeft: 8,
-  },
-  weatherSummaryDetail: {
+  aiBotCaption: {
     fontSize: 11,
-    color: "#64748b",
     marginTop: 6,
   },
+  hourlyForecastListContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 8,
+  },
+  hourlyForecastItem: {
+    width: 92,
+    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  hourlyTime: {
+    fontSize: 12,
+    color: "#475569",
+    marginBottom: 6,
+  },
+  hourlyIcon: {
+    width: 32,
+    height: 32,
+    marginBottom: 6,
+  },
+  hourlyTemp: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  hourlyPlaceholder: {
+    fontSize: 12,
+    color: "#94a3b8",
+  },
   markerDetailCard: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   markerDetailLabel: {
     fontSize: 10,
@@ -1050,37 +2064,5 @@ const styles = StyleSheet.create({
   markerDetailMeta: {
     fontSize: 11,
     opacity: 0.8,
-  },
-  floodHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    marginBottom: 8,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  sectionDescription: {
-    fontSize: 11,
-    color: "#94a3b8",
-  },
-  floodChipsRow: {
-    paddingVertical: 6,
-  },
-  floodChip: {
-    backgroundColor: "#fee2e2",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#f87171",
-    marginRight: 8,
-  },
-  floodChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#b91c1c",
   },
 });

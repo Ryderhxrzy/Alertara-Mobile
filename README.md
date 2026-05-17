@@ -25,6 +25,11 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+### Weather data (safety map)
+
+- Live barangay forecasts use OpenWeatherMap 5-day API. Add your key to a `.env` file as `EXPO_PUBLIC_OPENWEATHER_API_KEY=your_key_here`.
+- If no key is provided, the app now shows fallback mock weather so the map and cards never appear blank.
+
 ## Get a fresh project
 
 When you're ready, run:
